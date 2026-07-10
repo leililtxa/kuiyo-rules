@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -17,6 +18,7 @@ class RuleStageSpec:
     output_contract_version: str
     input_type: type[Any]
     output_type: type[Any]
+    evaluator: Callable[..., Any]
 
     def __post_init__(self) -> None:
         require_key(self.stage_key, field="stage_key")
@@ -49,4 +51,3 @@ class RuleSpec:
                 raise ValueError(f"stage mapping key mismatch: {stage_key}")
         object.__setattr__(self, "versions", MappingProxyType(versions))
         object.__setattr__(self, "stages", MappingProxyType(stages))
-

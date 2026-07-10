@@ -44,6 +44,32 @@ class OpeningCandidateGenerateParameters:
     known_5d_penalty_weight: float
 
 
+@dataclass(frozen=True)
+class CandidateEvaluationParameters:
+    stock_fade: float
+    stock_continuation: float
+    industry_breadth_fade: float
+    industry_return_fade: float
+    critical_hard_tags: frozenset[str]
+    minimum_hard_tags_to_reject: int
+    strong_confirm_soft_tags: int
+    confirm_soft_tags: int
+    weak_confirm_soft_tags: int
+    strong_confirm_premium: float
+    confirm_premium: float
+    weak_confirm_premium: float
+    elevated_chase: float
+    high_chase: float
+
+
+@dataclass(frozen=True)
+class CandidateTierParameters:
+    faded_before_execution: float
+    stable_after_candidate: float
+    continued_after_candidate: float
+    already_hot: float
+
+
 def generate_parameters(version: ResearchRuleVersion) -> OpeningCandidateGenerateParameters:
     if version.rule_key != "opening_candidate_watch":
         raise ValueError(f"unsupported generate rule: {version.rule_key}")
@@ -89,6 +115,43 @@ def generate_parameters(version: ResearchRuleVersion) -> OpeningCandidateGenerat
     )
 
 
+def evaluation_parameters(version: ResearchRuleVersion) -> CandidateEvaluationParameters:
+    require_opening_candidate_rule(version)
+    values = clause_parameters(version, "opening.execution-confirmation")
+    return CandidateEvaluationParameters(
+        stock_fade=float_value(values, "stock_fade"),
+        stock_continuation=float_value(values, "stock_continuation"),
+        industry_breadth_fade=float_value(values, "industry_breadth_fade"),
+        industry_return_fade=float_value(values, "industry_return_fade"),
+        critical_hard_tags=frozenset(text_list(values, "critical_hard_tags")),
+        minimum_hard_tags_to_reject=int_value(values, "minimum_hard_tags_to_reject"),
+        strong_confirm_soft_tags=int_value(values, "strong_confirm_soft_tags"),
+        confirm_soft_tags=int_value(values, "confirm_soft_tags"),
+        weak_confirm_soft_tags=int_value(values, "weak_confirm_soft_tags"),
+        strong_confirm_premium=float_value(values, "strong_confirm_premium"),
+        confirm_premium=float_value(values, "confirm_premium"),
+        weak_confirm_premium=float_value(values, "weak_confirm_premium"),
+        elevated_chase=float_value(values, "elevated_chase"),
+        high_chase=float_value(values, "high_chase"),
+    )
+
+
+def tier_parameters(version: ResearchRuleVersion) -> CandidateTierParameters:
+    require_opening_candidate_rule(version)
+    values = clause_parameters(version, "opening.watch-tier")
+    return CandidateTierParameters(
+        faded_before_execution=float_value(values, "faded_before_execution"),
+        stable_after_candidate=float_value(values, "stable_after_candidate"),
+        continued_after_candidate=float_value(values, "continued_after_candidate"),
+        already_hot=float_value(values, "already_hot"),
+    )
+
+
+def require_opening_candidate_rule(version: ResearchRuleVersion) -> None:
+    if version.rule_key != "opening_candidate_watch":
+        raise ValueError(f"unsupported opening candidate rule: {version.rule_key}")
+
+
 def clause_parameters(version: ResearchRuleVersion, clause_key: str) -> Mapping[str, object]:
     matches: list[RuleClauseReference] = [
         clause for clause in version.clause_composition if clause.clause_key == clause_key
@@ -102,6 +165,17 @@ def text_value(values: Mapping[str, object], key: str) -> str:
     value = required_value(values, key)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def text_list(values: Mapping[str, object], key: str) -> tuple[str, ...]:
+    value = required_value(values, key)
+    if (
+        not isinstance(value, tuple)
+        or not value
+        or not all(isinstance(item, str) and item for item in value)
+    ):
+        raise ValueError(f"{key} must be a non-empty string list")
     return value
 
 

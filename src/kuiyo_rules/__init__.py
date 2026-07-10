@@ -10,8 +10,18 @@ from kuiyo_rules.contracts import (
     OpeningCandidateGenerateOutput,
 )
 from kuiyo_rules.definitions import ResearchRuleDefinition, ResearchRuleVersion
-from kuiyo_rules.evaluation import generate_opening_candidates
-from kuiyo_rules.registry import RuleSpec, RuleStageSpec, get_rule_spec, get_rule_version
+from kuiyo_rules.evaluation import (
+    evaluate_opening_candidates,
+    generate_opening_candidates,
+    tier_opening_candidates,
+)
+from kuiyo_rules.registry import (
+    RuleSpec,
+    RuleStageSpec,
+    evaluate_rule,
+    get_rule_spec,
+    get_rule_version,
+)
 
 __all__ = [
     "CandidateEvaluationInput",
@@ -25,7 +35,10 @@ __all__ = [
     "RuleClauseReference",
     "RuleSpec",
     "RuleStageSpec",
+    "evaluate_opening_candidates",
+    "evaluate_rule",
     "get_rule_spec",
     "get_rule_version",
     "generate_opening_candidates",
+    "tier_opening_candidates",
 ]

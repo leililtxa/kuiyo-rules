@@ -154,8 +154,6 @@ OPENING_CANDIDATE_BASELINE_V001 = ResearchRuleVersion(
                 "stable_after_candidate": -0.005,
                 "continued_after_candidate": 0.005,
                 "already_hot": 0.07,
-                "elevated_chase": 0.05,
-                "high_chase": 0.08,
             },
         ),
         RuleClauseReference(

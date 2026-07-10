@@ -29,3 +29,8 @@ def clean_quality(value: object) -> str:
         pass
     return str(value)
 
+
+def frame_data_quality(frame: pd.DataFrame, *, column: str = "data_quality") -> str:
+    if frame.empty or column not in frame:
+        return "missing"
+    return aggregate_data_quality(frame[column].tolist())

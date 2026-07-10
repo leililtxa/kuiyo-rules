@@ -8,7 +8,7 @@ from kuiyo_rules.clauses import RuleClauseReference
 from kuiyo_rules.definitions import OPENING_CANDIDATE_BASELINE_V001, ResearchRuleVersion
 
 
-BASELINE_HASH = "e8d487f3baa74cff9ed9d7ddae5782f1d473b09a9ead19e6c1db58d456603fee"
+BASELINE_HASH = "6aac4648b5ef7a8ce832a7260a75ef6fd488574945c29f8c1323908ebbc55bba"
 
 
 def test_opening_candidate_baseline_has_stable_definition_hash() -> None:

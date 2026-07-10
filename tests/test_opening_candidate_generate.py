@@ -9,6 +9,7 @@ from pandas.testing import assert_frame_equal
 
 from kuiyo_rules import (
     OpeningCandidateGenerateInput,
+    evaluate_rule,
     generate_opening_candidates,
 )
 from kuiyo_rules.clauses import RuleClauseReference
@@ -33,6 +34,18 @@ def test_generate_opening_candidates_matches_baseline_characterization() -> None
     assert list(output.candidates["candidate_rank_diversified_v0_1"]) == [1, 2]
     assert output.summary["primary_candidate_count"] == 2
     assert output.summary["shadow_candidate_count"] == 0
+    assert output.summary["rule"]["rule_version"] == "v001"
+
+
+def test_registry_dispatches_generate_stage() -> None:
+    output = evaluate_rule(
+        rule_key="opening_candidate_watch",
+        rule_version="v001",
+        stage_key="generate",
+        rule_input=rule_input(),
+    )
+
+    assert output.status == "no_candidate"
     assert output.summary["rule"]["rule_version"] == "v001"
 
 
