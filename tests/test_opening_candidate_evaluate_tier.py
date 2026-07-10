@@ -5,6 +5,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import pytest
 from pandas.testing import assert_frame_equal
 
 from kuiyo_rules import (
@@ -16,6 +17,9 @@ from kuiyo_rules import (
 from kuiyo_rules.definitions import OPENING_CANDIDATE_BASELINE_V001
 from kuiyo_rules.evaluation.opening_candidate.evaluation_rules import (
     apply_execution_confirmation,
+)
+from kuiyo_rules.evaluation.opening_candidate.evaluation_features import (
+    industry_checkpoint_features,
 )
 from kuiyo_rules.evaluation.opening_candidate.parameters import (
     evaluation_parameters,
@@ -120,6 +124,30 @@ def test_execution_confirmation_keeps_shadow_candidate_as_observe() -> None:
 
     assert evaluated.iloc[0]["decision"] == "observe"
     assert "shadow_diagnostic_only" in evaluated.iloc[0]["soft_tags"]
+
+
+def test_industry_checkpoint_features_handles_zero_open_price() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "symbol": "000001.SZ",
+                "last_price": 10.0,
+                "previous_close_price": 9.0,
+                "open_price": 0.0,
+            },
+            {
+                "symbol": "000002.SZ",
+                "last_price": 11.0,
+                "previous_close_price": 10.0,
+                "open_price": 10.0,
+            },
+        ]
+    )
+
+    result = industry_checkpoint_features("industry_candidate", frame)
+
+    assert result["industry_candidate_member_count"] == 2
+    assert result["industry_candidate_avg_ret_open"] == pytest.approx(0.1)
 
 
 def test_chase_risk_boundaries_are_preserved() -> None:

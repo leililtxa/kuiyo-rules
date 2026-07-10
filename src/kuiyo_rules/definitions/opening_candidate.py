@@ -55,6 +55,13 @@ OPENING_CANDIDATE_BASELINE_V001 = ResearchRuleVersion(
             "market.index.quote.window",
         ],
         "universe_index_symbols": ["000300.SH", "000852.SH"],
+        "focus_index_symbols": [
+            "000001.SH",
+            "399001.SZ",
+            "399006.SZ",
+            "000300.SH",
+            "000852.SH",
+        ],
         "classification_system": "sw2021",
         "industry_level": 1,
         "daily_lookback_days": 30,
