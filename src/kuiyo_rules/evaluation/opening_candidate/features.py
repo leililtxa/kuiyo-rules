@@ -50,8 +50,12 @@ def enrich_stock_rows(
         out["auction_previous_close_price"] = pd.NA
         out["observed_at"] = pd.NaT
 
-    effective_auction = out["auction_price"].fillna(out["open_price"]) if allow_auction_proxy else out["auction_price"]
-    effective_previous = out["auction_previous_close_price"].fillna(out["previous_close_price"])
+    auction_price = pd.to_numeric(out["auction_price"], errors="coerce")
+    open_price = pd.to_numeric(out["open_price"], errors="coerce")
+    auction_previous = pd.to_numeric(out["auction_previous_close_price"], errors="coerce")
+    previous_close = pd.to_numeric(out["previous_close_price"], errors="coerce")
+    effective_auction = auction_price.fillna(open_price) if allow_auction_proxy else auction_price
+    effective_previous = auction_previous.fillna(previous_close)
     out["auction_ret_prev_close"] = effective_auction / effective_previous - 1.0
     out["auction_amount"] = out["auction_amount_yuan"]
     out["auction_data_quality"] = "normal"
@@ -89,4 +93,3 @@ def known_stock_features(*, daily_quotes: pd.DataFrame, previous_trade_date: dat
             }
         )
     return pd.DataFrame(rows)
-
