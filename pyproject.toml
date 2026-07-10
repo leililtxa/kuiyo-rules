@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kuiyo-rules"
+version = "0.1.0"
+description = "Pure rule contracts and deterministic evaluators for Kuiyo."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kuiyo_rules*"]
+
