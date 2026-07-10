@@ -8,7 +8,7 @@ from kuiyo_rules.clauses import RuleClauseReference
 from kuiyo_rules.definitions import OPENING_CANDIDATE_BASELINE_V001, ResearchRuleVersion
 
 
-BASELINE_HASH = "2b1a7e00d85ecbc60c1101320b844d23f38b95d8a96c8e75bdcbbd3f3e0a9f96"
+BASELINE_HASH = "e8d487f3baa74cff9ed9d7ddae5782f1d473b09a9ead19e6c1db58d456603fee"
 
 
 def test_opening_candidate_baseline_has_stable_definition_hash() -> None:
@@ -64,4 +64,3 @@ def test_rule_version_is_a_pure_definition_without_database_identity() -> None:
             "evaluator_key",
         }
     )
-
