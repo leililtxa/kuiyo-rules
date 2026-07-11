@@ -14,11 +14,12 @@ from kuiyo_rules.evaluation.opening_candidate.market_policy import (
 )
 from kuiyo_rules.evaluation.opening_candidate.parameters import generate_parameters
 from kuiyo_rules.evaluation.opening_candidate.selection import (
-    build_ranked_pool,
     diversify_candidates,
+    evaluate_ranked_pool,
     select_industries,
     select_shadow_industries,
 )
+from kuiyo_rules.evaluation.opening_candidate.traces import generate_clause_traces
 
 
 def generate_opening_candidates(
@@ -32,10 +33,11 @@ def generate_opening_candidates(
     daily_quotes = rule_input.daily_quotes
 
     if stock_quotes.empty:
+        market_policy = missing_market_policy("no_realtime_before_cutoff")
         return OpeningCandidateGenerateOutput(
             status="missing_data",
             data_quality="missing",
-            market_policy=missing_market_policy("no_realtime_before_cutoff"),
+            market_policy=market_policy,
             selected_industries=pd.DataFrame(),
             candidates=pd.DataFrame(),
             summary={
@@ -43,6 +45,16 @@ def generate_opening_candidates(
                 "realtime_row_count": 0,
                 "rule": rule_identity(rule_version),
             },
+            clause_traces=generate_clause_traces(
+                rule_version=rule_version,
+                cutoff_at=rule_input.cutoff_at,
+                status="missing_data",
+                data_quality="missing",
+                market_policy=market_policy,
+                industry_stats=pd.DataFrame(),
+                selected_industries=pd.DataFrame(),
+                stock_trace_rows=pd.DataFrame(),
+            ),
         )
 
     previous_daily = (
@@ -85,6 +97,16 @@ def generate_opening_candidates(
                 "market_policy": market_policy,
                 "rule": rule_identity(rule_version),
             },
+            clause_traces=generate_clause_traces(
+                rule_version=rule_version,
+                cutoff_at=rule_input.cutoff_at,
+                status="missing_data",
+                data_quality="missing",
+                market_policy=market_policy,
+                industry_stats=pd.DataFrame(),
+                selected_industries=pd.DataFrame(),
+                stock_trace_rows=pd.DataFrame(),
+            ),
         )
 
     enriched = enrich_stock_rows(
@@ -133,6 +155,16 @@ def generate_opening_candidates(
                 "market_policy": market_policy,
                 "rule": rule_identity(rule_version),
             },
+            clause_traces=generate_clause_traces(
+                rule_version=rule_version,
+                cutoff_at=rule_input.cutoff_at,
+                status="no_candidate",
+                data_quality=data_quality,
+                market_policy=market_policy,
+                industry_stats=pd.DataFrame(),
+                selected_industries=pd.DataFrame(),
+                stock_trace_rows=pd.DataFrame(),
+            ),
         )
 
     industry_stats = build_industry_stats(enriched, parameters=parameters)
@@ -151,11 +183,13 @@ def generate_opening_candidates(
         market_policy=market_policy,
         parameters=parameters,
     )
-    ranked_pool = build_ranked_pool(
+    ranked_evaluation = evaluate_ranked_pool(
         enriched=enriched,
         selected_industries=selected_industries,
         parameters=parameters,
     )
+    ranked_pool = ranked_evaluation.ranked_pool
+    stock_trace_rows = ranked_evaluation.trace_rows
     selected = diversify_candidates(ranked_pool, parameters=parameters)
     primary_candidate_count = int(len(selected))
     shadow_candidate_count = 0
@@ -166,10 +200,16 @@ def generate_opening_candidates(
             market_policy=market_policy,
             parameters=parameters,
         )
-        shadow_pool = build_ranked_pool(
+        shadow_evaluation = evaluate_ranked_pool(
             enriched=enriched,
             selected_industries=shadow_industries,
             parameters=parameters,
+        )
+        shadow_pool = shadow_evaluation.ranked_pool
+        stock_trace_rows = pd.concat(
+            [stock_trace_rows, shadow_evaluation.trace_rows],
+            ignore_index=True,
+            sort=False,
         )
         shadow_selected = diversify_candidates(shadow_pool, parameters=parameters)
         if not shadow_selected.empty:
@@ -219,6 +259,16 @@ def generate_opening_candidates(
         },
         ranked_pool=ranked_pool,
         shadow_ranked_pool=shadow_pool,
+        clause_traces=generate_clause_traces(
+            rule_version=rule_version,
+            cutoff_at=rule_input.cutoff_at,
+            status=status,
+            data_quality=data_quality,
+            market_policy=market_policy,
+            industry_stats=industry_stats,
+            selected_industries=selected_industries,
+            stock_trace_rows=stock_trace_rows,
+        ),
     )
 
 

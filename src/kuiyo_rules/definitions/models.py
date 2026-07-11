@@ -11,8 +11,8 @@ from kuiyo_rules.serialization import FrozenJson, definition_hash, freeze_json, 
 
 
 DefinitionStatus = Literal["active", "deprecated"]
-VersionStatus = Literal["proposed", "validated", "rejected"]
-ProvenanceStatus = Literal["confirmed", "pending_review"]
+ConformanceStatus = Literal["unreviewed", "conformant", "nonconformant"]
+EvidenceStatus = Literal["baseline_unverified", "partially_supported", "supported", "rejected"]
 
 
 @dataclass(frozen=True)
@@ -44,8 +44,8 @@ class ResearchRuleDefinition:
 class ResearchRuleVersion:
     rule_key: str
     rule_version: str
-    lifecycle_status: VersionStatus
-    provenance_status: ProvenanceStatus
+    conformance_status: ConformanceStatus
+    evidence_status: EvidenceStatus
     input_contract_version: str
     output_contract_version: str
     decision_policy: Mapping[str, FrozenJson]
@@ -62,10 +62,15 @@ class ResearchRuleVersion:
         require_version(self.rule_version, field="rule_version")
         require_version(self.input_contract_version, field="input_contract_version")
         require_version(self.output_contract_version, field="output_contract_version")
-        if self.lifecycle_status not in {"proposed", "validated", "rejected"}:
-            raise ValueError(f"unsupported lifecycle_status: {self.lifecycle_status}")
-        if self.provenance_status not in {"confirmed", "pending_review"}:
-            raise ValueError(f"unsupported provenance_status: {self.provenance_status}")
+        if self.conformance_status not in {"unreviewed", "conformant", "nonconformant"}:
+            raise ValueError(f"unsupported conformance_status: {self.conformance_status}")
+        if self.evidence_status not in {
+            "baseline_unverified",
+            "partially_supported",
+            "supported",
+            "rejected",
+        }:
+            raise ValueError(f"unsupported evidence_status: {self.evidence_status}")
         if self.frozen_at.tzinfo is None or self.frozen_at.utcoffset() is None:
             raise ValueError("frozen_at must be timezone-aware")
         if not self.clause_composition:

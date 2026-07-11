@@ -13,6 +13,7 @@ from kuiyo_rules.evaluation.opening_candidate.evaluation_rules import (
 from kuiyo_rules.evaluation.opening_candidate.generate import rule_identity
 from kuiyo_rules.evaluation.opening_candidate.parameters import evaluation_parameters
 from kuiyo_rules.quality import frame_data_quality
+from kuiyo_rules.evaluation.opening_candidate.traces import evaluation_clause_traces
 
 
 def evaluate_opening_candidates(
@@ -41,11 +42,19 @@ def evaluate_opening_candidates(
                 "reason": "no_candidate_features",
                 "rule": rule_identity(rule_version),
             },
+            clause_traces=evaluation_clause_traces(
+                rule_version=rule_version,
+                cutoff_at=rule_input.evaluation_cutoff_at,
+                evaluations=evaluations,
+                status="missing_data",
+                data_quality="missing",
+            ),
         )
     counts = Counter(str(value) for value in evaluations["decision"])
+    data_quality = frame_data_quality(evaluations)
     return CandidateEvaluationOutput(
         status="ok",
-        data_quality=frame_data_quality(evaluations),
+        data_quality=data_quality,
         evaluations=evaluations,
         summary={
             "candidate_count": int(len(rule_input.candidates)),
@@ -56,4 +65,11 @@ def evaluate_opening_candidates(
             "index_quote_row_count": int(len(rule_input.index_quotes)),
             "rule": rule_identity(rule_version),
         },
+        clause_traces=evaluation_clause_traces(
+            rule_version=rule_version,
+            cutoff_at=rule_input.evaluation_cutoff_at,
+            evaluations=evaluations,
+            status="ok",
+            data_quality=data_quality,
+        ),
     )

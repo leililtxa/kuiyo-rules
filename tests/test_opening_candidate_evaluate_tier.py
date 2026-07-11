@@ -62,6 +62,10 @@ def test_evaluate_opening_candidates_matches_baseline_characterization() -> None
     assert output.evaluations.iloc[0]["max_execution_premium"] == 0.01
     assert output.evaluations.iloc[0]["chase_risk_level"] == "elevated"
     assert output.summary["decision_counts"] == {"strong_confirm": 1, "reject": 1}
+    assert {trace.clause_key for trace in output.clause_traces} == {
+        "opening.execution-confirmation",
+        "opening.data-quality-guard",
+    }
 
 
 def test_evaluate_opening_candidates_is_deterministic_and_does_not_mutate_inputs() -> None:
@@ -186,6 +190,10 @@ def test_tier_opening_candidates_matches_baseline_characterization() -> None:
     assert list(output.tiers["watch_level"]) == ["secondary_watch", "reject"]
     assert list(output.tiers["priority"]) == [1, 2]
     assert output.tiers.iloc[0]["reasons"] == ("has_soft_confirm_but_not_focus",)
+    assert {trace.clause_key for trace in output.clause_traces} == {
+        "opening.watch-tier",
+        "opening.data-quality-guard",
+    }
 
 
 def test_tier_opening_candidates_reports_missing_upstream_evaluation() -> None:

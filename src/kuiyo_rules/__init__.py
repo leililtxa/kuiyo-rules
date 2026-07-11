@@ -1,6 +1,6 @@
 """Pure rule contracts and deterministic evaluators for Kuiyo."""
 
-from kuiyo_rules.clauses import RuleClauseReference
+from kuiyo_rules.clauses import ClauseTrace, RuleClauseReference
 from kuiyo_rules.contracts import (
     CandidateEvaluationInput,
     CandidateEvaluationOutput,
@@ -28,6 +28,7 @@ __all__ = [
     "CandidateEvaluationOutput",
     "CandidateTierInput",
     "CandidateTierOutput",
+    "ClauseTrace",
     "OpeningCandidateGenerateInput",
     "OpeningCandidateGenerateOutput",
     "ResearchRuleDefinition",

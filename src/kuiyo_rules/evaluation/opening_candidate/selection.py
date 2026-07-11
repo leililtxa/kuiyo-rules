@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
 
 from kuiyo_rules.evaluation.opening_candidate.parameters import OpeningCandidateGenerateParameters
+
+
+@dataclass(frozen=True)
+class RankedPoolEvaluation:
+    ranked_pool: pd.DataFrame
+    trace_rows: pd.DataFrame
 
 
 def select_industries(
@@ -92,8 +99,21 @@ def build_ranked_pool(
     selected_industries: pd.DataFrame,
     parameters: OpeningCandidateGenerateParameters,
 ) -> pd.DataFrame:
+    return evaluate_ranked_pool(
+        enriched=enriched,
+        selected_industries=selected_industries,
+        parameters=parameters,
+    ).ranked_pool
+
+
+def evaluate_ranked_pool(
+    *,
+    enriched: pd.DataFrame,
+    selected_industries: pd.DataFrame,
+    parameters: OpeningCandidateGenerateParameters,
+) -> RankedPoolEvaluation:
     if enriched.empty or selected_industries.empty:
-        return pd.DataFrame()
+        return RankedPoolEvaluation(ranked_pool=pd.DataFrame(), trace_rows=pd.DataFrame())
     pool = enriched.merge(
         selected_industries[
             [
@@ -118,11 +138,14 @@ def build_ranked_pool(
         how="inner",
     )
     pool = add_basic_filters(pool, parameters=parameters)
-    pool = pool[pool["candidate_basic_filter_pass"]].copy()
-    if pool.empty:
-        return pool
-    pool = add_rank_features(pool, parameters=parameters)
-    return add_stock_rules(pool, parameters=parameters)
+    basic_failed = pool[~pool["candidate_basic_filter_pass"]].copy()
+    eligible = pool[pool["candidate_basic_filter_pass"]].copy()
+    if eligible.empty:
+        return RankedPoolEvaluation(ranked_pool=eligible, trace_rows=basic_failed)
+    eligible = add_rank_features(eligible, parameters=parameters)
+    eligible = add_stock_rules(eligible, parameters=parameters)
+    trace_rows = pd.concat([basic_failed, eligible], ignore_index=True, sort=False)
+    return RankedPoolEvaluation(ranked_pool=eligible, trace_rows=trace_rows)
 
 
 def add_basic_filters(
@@ -251,4 +274,3 @@ def diversify_candidates(
     out["candidate_role"] = out.get("candidate_role", "watch")
     out["candidate_key"] = out["symbol"].astype(str)
     return out
-

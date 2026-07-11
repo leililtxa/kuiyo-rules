@@ -11,6 +11,7 @@ from kuiyo_rules.evaluation.opening_candidate.parameters import tier_parameters
 from kuiyo_rules.evaluation.opening_candidate.tier_features import build_watch_tier_features
 from kuiyo_rules.evaluation.opening_candidate.tier_rules import apply_watch_tiers
 from kuiyo_rules.quality import frame_data_quality
+from kuiyo_rules.evaluation.opening_candidate.traces import tier_clause_traces
 
 
 def tier_opening_candidates(
@@ -28,6 +29,13 @@ def tier_opening_candidates(
                 "evaluation_count": 0,
                 "rule": rule_identity(rule_version),
             },
+            clause_traces=tier_clause_traces(
+                rule_version=rule_version,
+                cutoff_at=rule_input.cutoff_at,
+                tiers=pd.DataFrame(),
+                status="upstream_no_evaluation",
+                data_quality="missing",
+            ),
         )
     parameters = tier_parameters(rule_version)
     features = build_watch_tier_features(
@@ -37,9 +45,10 @@ def tier_opening_candidates(
     )
     tiers = apply_watch_tiers(features)
     counts = Counter(str(value) for value in tiers["watch_level"])
+    data_quality = frame_data_quality(tiers)
     return CandidateTierOutput(
         status="ok",
-        data_quality=frame_data_quality(tiers),
+        data_quality=data_quality,
         tiers=tiers,
         summary={
             "candidate_count": int(len(rule_input.candidates)),
@@ -47,4 +56,11 @@ def tier_opening_candidates(
             "watch_level_counts": dict(counts),
             "rule": rule_identity(rule_version),
         },
+        clause_traces=tier_clause_traces(
+            rule_version=rule_version,
+            cutoff_at=rule_input.cutoff_at,
+            tiers=tiers,
+            status="ok",
+            data_quality=data_quality,
+        ),
     )

@@ -35,6 +35,18 @@ def test_generate_opening_candidates_matches_baseline_characterization() -> None
     assert output.summary["primary_candidate_count"] == 2
     assert output.summary["shadow_candidate_count"] == 0
     assert output.summary["rule"]["rule_version"] == "v001"
+    assert {trace.clause_key for trace in output.clause_traces} == {
+        "opening.market-policy",
+        "opening.industry-strength",
+        "opening.stock-eligibility",
+        "opening.candidate-scoring",
+        "opening.data-quality-guard",
+    }
+    assert any(
+        trace.clause_key == "opening.stock-eligibility"
+        and trace.subject_key == "600001.SH"
+        for trace in output.clause_traces
+    )
 
 
 def test_registry_dispatches_generate_stage() -> None:
@@ -75,6 +87,8 @@ def test_generate_opening_candidates_reports_missing_stock_window() -> None:
     assert output.data_quality == "missing"
     assert output.market_policy["reason"] == "no_realtime_before_cutoff"
     assert output.candidates.empty
+    assert output.clause_traces[-1].clause_key == "opening.data-quality-guard"
+    assert output.clause_traces[-1].output["status"] == "missing_data"
 
 
 def test_generate_opening_candidates_rejects_missing_previous_daily() -> None:

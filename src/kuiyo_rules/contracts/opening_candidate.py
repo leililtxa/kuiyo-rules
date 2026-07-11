@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from kuiyo_rules.clauses import ClauseTrace
+
 
 JsonObject = dict[str, Any]
 
@@ -34,6 +36,7 @@ class OpeningCandidateGenerateOutput:
     summary: JsonObject
     ranked_pool: pd.DataFrame = field(default_factory=empty_frame)
     shadow_ranked_pool: pd.DataFrame = field(default_factory=empty_frame)
+    clause_traces: tuple[ClauseTrace, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,7 @@ class CandidateEvaluationOutput:
     data_quality: str
     evaluations: pd.DataFrame
     summary: JsonObject
+    clause_traces: tuple[ClauseTrace, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -71,4 +75,4 @@ class CandidateTierOutput:
     data_quality: str
     tiers: pd.DataFrame
     summary: JsonObject
-
+    clause_traces: tuple[ClauseTrace, ...] = ()

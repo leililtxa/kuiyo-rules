@@ -13,6 +13,8 @@ BASELINE_HASH = "271439f66e997b3a1490204448b83532326a11510593689624d060d61ce8f9f
 
 def test_opening_candidate_baseline_has_stable_definition_hash() -> None:
     assert OPENING_CANDIDATE_BASELINE_V001.definition_hash == BASELINE_HASH
+    assert OPENING_CANDIDATE_BASELINE_V001.conformance_status == "conformant"
+    assert OPENING_CANDIDATE_BASELINE_V001.evidence_status == "baseline_unverified"
 
 
 def test_non_semantic_metadata_does_not_change_definition_hash() -> None:
