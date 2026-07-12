@@ -22,6 +22,8 @@ from kuiyo_rules.evidence import (
     QueryIntent,
     ResolvedSourceEvidence,
     dataframe_fingerprint,
+    input_evidence_semantic_fingerprint,
+    input_evidence_semantic_payload,
     semantic_fingerprint,
     typed_rule_contract_fingerprint,
 )
@@ -57,6 +59,8 @@ __all__ = [
     "get_rule_version",
     "generate_opening_candidates",
     "dataframe_fingerprint",
+    "input_evidence_semantic_fingerprint",
+    "input_evidence_semantic_payload",
     "semantic_fingerprint",
     "tier_opening_candidates",
     "typed_rule_contract_fingerprint",

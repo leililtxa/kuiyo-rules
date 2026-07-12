@@ -14,6 +14,8 @@ from kuiyo_rules.evidence.contracts import (
 )
 from kuiyo_rules.evidence.fingerprints import (
     dataframe_fingerprint,
+    input_evidence_semantic_fingerprint,
+    input_evidence_semantic_payload,
     semantic_fingerprint,
     typed_rule_contract_fingerprint,
 )
@@ -30,6 +32,8 @@ __all__ = [
     "ResolvedSourceEvidence",
     "TemporalCapability",
     "dataframe_fingerprint",
+    "input_evidence_semantic_fingerprint",
+    "input_evidence_semantic_payload",
     "semantic_fingerprint",
     "typed_rule_contract_fingerprint",
 ]

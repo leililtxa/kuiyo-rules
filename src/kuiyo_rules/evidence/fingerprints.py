@@ -10,6 +10,8 @@ from typing import Any
 
 import pandas as pd
 
+from kuiyo_rules.evidence.contracts import InputEvidence
+
 
 def semantic_fingerprint(value: Any) -> str:
     payload = json.dumps(
@@ -30,6 +32,36 @@ def typed_rule_contract_fingerprint(value: object) -> str:
     if not hasattr(value, "__dataclass_fields__"):
         raise TypeError("typed rule contract must be a dataclass instance")
     return semantic_fingerprint(value)
+
+
+def input_evidence_semantic_payload(evidence: InputEvidence) -> dict[str, object]:
+    query = evidence.query
+    return {
+        "input_key": query.input_key,
+        "input_type": query.input_type,
+        "semantic_role": query.semantic_role,
+        "dataset_key": query.dataset_key,
+        "requested_range": query.requested_range,
+        "fields": query.fields,
+        "filters": query.filters,
+        "symbol_count": query.symbol_count,
+        "symbol_set_fingerprint": query.symbol_set_fingerprint,
+        "missing_policy": query.missing_policy,
+        "upstream_stage_key": query.upstream_stage_key,
+        "upstream_attempt_key": query.upstream_attempt_key,
+        "upstream_output_contract": query.upstream_output_contract,
+        "upstream_content_fingerprint": query.upstream_content_fingerprint,
+        "content_fingerprint": evidence.content.content_fingerprint,
+        "min_known_at": evidence.content.min_known_at,
+        "max_known_at": evidence.content.max_known_at,
+        "conformance_status": evidence.conformance.status,
+        "conformance_reasons": evidence.conformance.reasons,
+        "temporal_capability": evidence.conformance.temporal_capability,
+    }
+
+
+def input_evidence_semantic_fingerprint(evidence: InputEvidence) -> str:
+    return semantic_fingerprint(input_evidence_semantic_payload(evidence))
 
 
 def canonical_value(value: Any) -> Any:
