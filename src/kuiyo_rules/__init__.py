@@ -27,6 +27,7 @@ from kuiyo_rules.evidence import (
     semantic_fingerprint,
     typed_rule_contract_fingerprint,
 )
+from kuiyo_rules.execution import canonical_attempt_key
 from kuiyo_rules.registry import (
     RuleSpec,
     RuleStageSpec,
@@ -59,6 +60,7 @@ __all__ = [
     "get_rule_version",
     "generate_opening_candidates",
     "dataframe_fingerprint",
+    "canonical_attempt_key",
     "input_evidence_semantic_fingerprint",
     "input_evidence_semantic_payload",
     "semantic_fingerprint",
