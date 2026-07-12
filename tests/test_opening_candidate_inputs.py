@@ -32,6 +32,36 @@ def test_generate_input_keeps_empty_auction_schema_stable() -> None:
     ]
 
 
+def test_generate_input_limits_auctions_to_stock_quote_universe() -> None:
+    stock_quotes = pd.DataFrame(
+        [{
+            "trade_date": date(2026, 7, 3), "snapshot_at": "2026-07-03 09:35:00+08:00",
+            "quote_time": "2026-07-03 09:35:00+08:00", "symbol": "000001.SZ",
+            "previous_close_price": 10, "open_price": 10, "last_price": 10,
+            "volume_shares": 1, "turnover_amount_yuan": 10, "name": "Ping An",
+            "exchange": "SZSE", "market": "main", "listing_status": "listed",
+            "industry_symbol": "801780.SI", "industry_name": "Bank",
+        }]
+    )
+    auctions = pd.DataFrame(
+        [
+            auction_row("000001.SZ"),
+            auction_row("000002.SZ"),
+        ]
+    )
+
+    value = build_generate_input(
+        trade_date=date(2026, 7, 3),
+        previous_trade_date=date(2026, 7, 2),
+        cutoff_at=datetime(2026, 7, 3, 9, 36, tzinfo=ZoneInfo("Asia/Shanghai")),
+        stock_quotes=stock_quotes,
+        auctions=auctions,
+        daily_quotes=pd.DataFrame(),
+    )
+
+    assert value.auctions["symbol"].tolist() == ["000001.SZ"]
+
+
 def test_candidate_handoff_is_minimal_and_stable() -> None:
     output = OpeningCandidateGenerateOutput(
         status="ok",
@@ -202,3 +232,11 @@ def index_quote_frame(value: object, *, include_name: bool = False) -> pd.DataFr
     if include_name:
         frame["name"] = "Index"
     return frame
+
+
+def auction_row(symbol: str) -> dict[str, object]:
+    return {
+        "trade_date": date(2026, 7, 3), "symbol": symbol, "auction_price": 10,
+        "auction_volume_shares": 1, "auction_amount_yuan": 10,
+        "previous_close_price": 10, "observed_at": "2026-07-03 09:27:00+08:00",
+    }

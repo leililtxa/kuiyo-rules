@@ -82,12 +82,21 @@ def build_generate_input(
     auctions: pd.DataFrame,
     daily_quotes: pd.DataFrame,
 ) -> OpeningCandidateGenerateInput:
+    canonical_stock_quotes = _quote_frame(stock_quotes, GENERATE_STOCK_QUOTE_COLUMNS)
+    canonical_auctions = _quote_frame(auctions, GENERATE_AUCTION_COLUMNS)
+    if canonical_stock_quotes.empty:
+        canonical_auctions = canonical_auctions.iloc[0:0].copy()
+    else:
+        symbols = set(canonical_stock_quotes["symbol"].dropna().astype(str))
+        canonical_auctions = canonical_auctions[
+            canonical_auctions["symbol"].astype(str).isin(symbols)
+        ].reset_index(drop=True)
     return OpeningCandidateGenerateInput(
         trade_date=trade_date,
         previous_trade_date=previous_trade_date,
         cutoff_at=cutoff_at,
-        stock_quotes=_quote_frame(stock_quotes, GENERATE_STOCK_QUOTE_COLUMNS),
-        auctions=_quote_frame(auctions, GENERATE_AUCTION_COLUMNS),
+        stock_quotes=canonical_stock_quotes,
+        auctions=canonical_auctions,
         daily_quotes=_quote_frame(daily_quotes, GENERATE_DAILY_COLUMNS),
     )
 
