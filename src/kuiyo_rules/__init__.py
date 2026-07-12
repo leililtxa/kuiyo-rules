@@ -15,6 +15,16 @@ from kuiyo_rules.evaluation import (
     generate_opening_candidates,
     tier_opening_candidates,
 )
+from kuiyo_rules.evidence import (
+    ContentEvidence,
+    InputEvidence,
+    KnownTimeConformance,
+    QueryIntent,
+    ResolvedSourceEvidence,
+    dataframe_fingerprint,
+    semantic_fingerprint,
+    typed_rule_contract_fingerprint,
+)
 from kuiyo_rules.registry import (
     RuleSpec,
     RuleStageSpec,
@@ -29,8 +39,13 @@ __all__ = [
     "CandidateTierInput",
     "CandidateTierOutput",
     "ClauseTrace",
+    "ContentEvidence",
+    "InputEvidence",
+    "KnownTimeConformance",
     "OpeningCandidateGenerateInput",
     "OpeningCandidateGenerateOutput",
+    "QueryIntent",
+    "ResolvedSourceEvidence",
     "ResearchRuleDefinition",
     "ResearchRuleVersion",
     "RuleClauseReference",
@@ -41,5 +56,8 @@ __all__ = [
     "get_rule_spec",
     "get_rule_version",
     "generate_opening_candidates",
+    "dataframe_fingerprint",
+    "semantic_fingerprint",
     "tier_opening_candidates",
+    "typed_rule_contract_fingerprint",
 ]
