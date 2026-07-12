@@ -182,7 +182,6 @@ OPENING_CANDIDATE_BASELINE_V001 = ResearchRuleVersion(
     source_hypothesis_keys=(),
     frozen_at=datetime(2026, 7, 10, 0, 0, tzinfo=ZoneInfo("Asia/Shanghai")),
     metadata={
-        "legacy_rule_key": "opening_candidate_watch_0936",
         "legacy_rule_version": "v0.2",
         "baseline_inventory": "RW-20-baseline-rule-inventory",
     },
