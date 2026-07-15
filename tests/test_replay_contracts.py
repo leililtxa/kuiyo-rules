@@ -15,6 +15,7 @@ from kuiyo_rules.evidence import (
     QueryIntent,
 )
 from kuiyo_rules.replay import (
+    OPENING_CANDIDATE_REPLAY_POLICY,
     ReplayDayPlan,
     ReplayPlan,
     ReplayProgress,
@@ -25,6 +26,7 @@ from kuiyo_rules.replay import (
     ResolvedReplayDataset,
     ResolvedReplayStageData,
 )
+from kuiyo_rules.registry import get_rule_version
 
 
 HASH = "a" * 64
@@ -229,3 +231,25 @@ def test_stage_input_plan_separates_dataset_and_upstream_requirements() -> None:
 
     assert plan.external_requirements == (external,)
     assert plan.upstream_requirements == (upstream,)
+
+
+def test_opening_candidate_window_queries_use_complete_time_ranges() -> None:
+    day = date(2026, 7, 14)
+    rule_version = get_rule_version("opening_candidate_watch", "v001")
+    day_plan = OPENING_CANDIDATE_REPLAY_POLICY.build_day_plan(
+        rule_version=rule_version,
+        trade_date=day,
+    )
+    progress = ReplayProgress(day_plan, processed_attempt_count=0)
+    stage_plan = OPENING_CANDIDATE_REPLAY_POLICY.build_stage_input_plan(
+        rule_version=rule_version,
+        progress=progress,
+    )
+    window_query = next(
+        item.query
+        for item in stage_plan.external_requirements
+        if item.query.input_key == "generate.stock_window"
+    )
+
+    assert window_query.requested_range["time_start"].isoformat() == "00:00:00"
+    assert window_query.requested_range["time_end"].isoformat() == "09:36:00"

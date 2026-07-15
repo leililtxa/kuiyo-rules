@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -79,7 +79,7 @@ def canonical_value(value: Any) -> Any:
         return {str(key): canonical_value(item) for key, item in value.items()}
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return [canonical_value(item) for item in value]
-    if isinstance(value, (date, datetime, pd.Timestamp)):
+    if isinstance(value, (date, datetime, time, pd.Timestamp)):
         return value.isoformat()
     if value is None or isinstance(value, (str, bool, int)):
         return value

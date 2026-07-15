@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -11,8 +11,10 @@ from kuiyo_rules import (
     OpeningCandidateGenerateInput,
     OpeningCandidateGenerateOutput,
     dataframe_fingerprint,
+    semantic_fingerprint,
     typed_rule_contract_fingerprint,
 )
+from kuiyo_rules.serialization import freeze_json
 
 
 TZ = ZoneInfo("Asia/Shanghai")
@@ -61,3 +63,14 @@ def test_opening_candidate_typed_contract_fingerprints_are_stable() -> None:
 def test_typed_rule_contract_fingerprint_rejects_untyped_payload() -> None:
     with pytest.raises(TypeError, match="typed rule contract must be a dataclass instance"):
         typed_rule_contract_fingerprint({"status": "ok"})
+
+
+def test_semantic_fingerprint_supports_time_ranges() -> None:
+    assert semantic_fingerprint({"time_start": time(0, 0), "time_end": time(9, 36)})
+
+
+def test_frozen_json_supports_time_ranges() -> None:
+    frozen = freeze_json({"time_start": time(0, 0), "time_end": time(9, 36)})
+
+    assert frozen["time_start"] == "00:00:00"
+    assert frozen["time_end"] == "09:36:00"

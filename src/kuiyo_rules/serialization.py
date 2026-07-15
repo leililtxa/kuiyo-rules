@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from types import MappingProxyType
 from typing import Any
 
@@ -20,7 +20,7 @@ def freeze_json(value: Any, *, path: str = "value") -> FrozenJson:
         if not math.isfinite(value):
             raise ValueError(f"{path} must not contain NaN or infinity")
         return value
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, (date, datetime, time)):
         return value.isoformat()
     if isinstance(value, Mapping):
         frozen: dict[str, FrozenJson] = {}
@@ -55,4 +55,3 @@ def thaw_json(value: FrozenJson) -> Any:
     if isinstance(value, tuple):
         return [thaw_json(item) for item in value]
     return value
-

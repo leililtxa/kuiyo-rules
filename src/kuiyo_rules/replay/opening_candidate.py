@@ -283,6 +283,7 @@ class OpeningCandidateReplayPolicy:
                     "market.stock.quote.window",
                     trade_date,
                     trade_date,
+                    time_start=time(0, 0),
                     time_end=attempt.cutoff_at.time(),
                     fields=(
                         "trade_date", "snapshot_at", "quote_time", "symbol",
@@ -346,6 +347,7 @@ class OpeningCandidateReplayPolicy:
                     "market.stock.quote.window",
                     trade_date,
                     trade_date,
+                    time_start=time(0, 0),
                     time_end=attempt.cutoff_at.time(),
                     fields=(
                         "trade_date", "snapshot_at", "quote_time", "symbol",
@@ -359,6 +361,7 @@ class OpeningCandidateReplayPolicy:
                     "market.industry.quote.window",
                     trade_date,
                     trade_date,
+                    time_start=time(0, 0),
                     time_end=attempt.cutoff_at.time(),
                     fields=(
                         "trade_date", "snapshot_at", "quote_time", "classification_system",
@@ -373,6 +376,7 @@ class OpeningCandidateReplayPolicy:
                     "market.index.quote.window",
                     trade_date,
                     trade_date,
+                    time_start=time(0, 0),
                     time_end=attempt.cutoff_at.time(),
                     fields=(
                         "trade_date", "snapshot_at", "quote_time", "symbol",
@@ -694,6 +698,7 @@ def _dataset_query(
     date_start: date | None = None,
     date_end: date | None = None,
     *,
+    time_start: time | None = None,
     time_end: time | None = None,
     fields: tuple[str, ...] = (),
     filters: Mapping[str, object] | None = None,
@@ -709,6 +714,7 @@ def _dataset_query(
         requested_range={
             "date_start": date_start,
             "date_end": date_end,
+            "time_start": time_start,
             "time_end": time_end,
         },
         semantic_role=cast(InputSemanticRole, semantic_role),
