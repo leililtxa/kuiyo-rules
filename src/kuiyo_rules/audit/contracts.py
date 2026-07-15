@@ -38,6 +38,8 @@ class OutcomeRequirement:
     requirement_key: str
     trade_date: date
     query: QueryIntent
+    symbols: tuple[str, ...] = ()
+    allow_full_scan: bool = False
 
     def __post_init__(self) -> None:
         require_key(self.requirement_key, field="requirement_key")
@@ -45,6 +47,10 @@ class OutcomeRequirement:
             raise ValueError("outcome requirements must resolve Dataset input")
         if self.requirement_key != self.query.input_key:
             raise ValueError("requirement_key must match query input_key")
+        symbols = tuple(dict.fromkeys(str(item) for item in self.symbols))
+        if self.query.symbol_count != len(symbols):
+            raise ValueError("query symbol_count must match outcome resolution symbols")
+        object.__setattr__(self, "symbols", symbols)
 
 
 @dataclass(frozen=True)
@@ -63,12 +69,17 @@ class OutcomePlan:
 @dataclass(frozen=True)
 class ResolvedOutcomeInput:
     requirement_key: str
+    query: QueryIntent
     frame: pd.DataFrame
     resolved_sources: tuple[ResolvedSourceEvidence, ...]
     content_evidence: ContentEvidence
 
     def __post_init__(self) -> None:
         require_key(self.requirement_key, field="requirement_key")
+        if self.query.input_type != "dataset":
+            raise ValueError("resolved outcome input requires Dataset QueryIntent")
+        if self.query.input_key != self.requirement_key:
+            raise ValueError("resolved outcome query must match requirement_key")
         object.__setattr__(self, "resolved_sources", tuple(self.resolved_sources))
 
 
@@ -167,3 +178,24 @@ def validate_audit_inputs(
     resolved = {item.requirement_key for item in outcome_bundle.inputs}
     if planned != resolved:
         raise ValueError("resolved outcome inputs must exactly match planned requirements")
+    plans = {item.requirement_key: item for item in outcome_plan.requirements}
+    for item in outcome_bundle.inputs:
+        expected = plans[item.requirement_key].query
+        if (
+            expected.dataset_key,
+            expected.requested_range,
+            expected.fields,
+            expected.filters,
+            expected.symbol_count,
+            expected.symbol_set_fingerprint,
+            expected.missing_policy,
+        ) != (
+            item.query.dataset_key,
+            item.query.requested_range,
+            item.query.fields,
+            item.query.filters,
+            item.query.symbol_count,
+            item.query.symbol_set_fingerprint,
+            item.query.missing_policy,
+        ):
+            raise ValueError("resolved outcome query does not match outcome plan")

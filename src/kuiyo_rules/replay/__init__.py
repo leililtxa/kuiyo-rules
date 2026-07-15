@@ -15,6 +15,17 @@ from kuiyo_rules.replay.contracts import (
     ResolvedReplayStageData,
     RuleStageOutput,
 )
+from kuiyo_rules.replay.engine import (
+    ReplayEvaluatorError,
+    ReplayInputError,
+    apply_input_conformance,
+    build_replay_plan,
+    execute_replay_stage,
+    finalize_replay_day,
+    prepare_next_stage,
+)
+from kuiyo_rules.replay.opening_candidate import OPENING_CANDIDATE_REPLAY_POLICY
+from kuiyo_rules.replay.registry import ReplayPolicyRegistry, RuleReplayPolicy
 
 __all__ = [
     "ParityStatus",
@@ -30,4 +41,14 @@ __all__ = [
     "ResolvedReplayDataset",
     "ResolvedReplayStageData",
     "RuleStageOutput",
+    "ReplayEvaluatorError",
+    "ReplayInputError",
+    "ReplayPolicyRegistry",
+    "RuleReplayPolicy",
+    "OPENING_CANDIDATE_REPLAY_POLICY",
+    "apply_input_conformance",
+    "build_replay_plan",
+    "execute_replay_stage",
+    "finalize_replay_day",
+    "prepare_next_stage",
 ]

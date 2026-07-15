@@ -8,7 +8,7 @@ from typing import Literal, Protocol
 import pandas as pd
 
 from kuiyo_rules.clauses import ClauseTrace
-from kuiyo_rules.evidence import InputEvidence, QueryIntent
+from kuiyo_rules.evidence import DatasetQueryRequirement, InputEvidence, QueryIntent
 from kuiyo_rules.identifiers import require_key, require_sha256, require_version
 from kuiyo_rules.serialization import FrozenJson, freeze_json
 
@@ -96,7 +96,7 @@ class ReplayStageInputPlan:
     rule_definition_hash: str
     trade_date: date
     attempt: ReplayStageAttempt
-    requirements: tuple[QueryIntent, ...]
+    requirements: tuple[DatasetQueryRequirement | QueryIntent, ...]
 
     def __post_init__(self) -> None:
         require_key(self.rule_key, field="rule_key")
@@ -104,18 +104,29 @@ class ReplayStageInputPlan:
         require_sha256(self.rule_definition_hash, field="rule_definition_hash")
         if self.attempt.cutoff_at.date() != self.trade_date:
             raise ValueError("attempt cutoff_at must match plan trade_date")
-        input_keys = [item.input_key for item in self.requirements]
+        input_keys = [_requirement_query(item).input_key for item in self.requirements]
         if len(set(input_keys)) != len(input_keys):
             raise ValueError("requirements must have unique input_key values")
+        if any(
+            isinstance(item, QueryIntent) and item.input_type != "stage_output"
+            for item in self.requirements
+        ):
+            raise ValueError("Dataset requirements must use DatasetQueryRequirement")
         object.__setattr__(self, "requirements", tuple(self.requirements))
 
     @property
-    def external_requirements(self) -> tuple[QueryIntent, ...]:
-        return tuple(item for item in self.requirements if item.input_type == "dataset")
+    def external_requirements(self) -> tuple[DatasetQueryRequirement, ...]:
+        return tuple(
+            item for item in self.requirements if isinstance(item, DatasetQueryRequirement)
+        )
 
     @property
     def upstream_requirements(self) -> tuple[QueryIntent, ...]:
-        return tuple(item for item in self.requirements if item.input_type == "stage_output")
+        return tuple(
+            item
+            for item in self.requirements
+            if isinstance(item, QueryIntent) and item.input_type == "stage_output"
+        )
 
 
 @dataclass(frozen=True)
@@ -141,10 +152,32 @@ class ResolvedReplayStageData:
         keys = [item.input_key for item in self.datasets]
         if len(set(keys)) != len(keys):
             raise ValueError("datasets must have unique input_key values")
-        required = {item.input_key for item in self.plan.external_requirements}
+        required = {item.query.input_key for item in self.plan.external_requirements}
         resolved = set(keys)
         if required != resolved:
             raise ValueError("resolved datasets must exactly match external requirements")
+        requirements = {
+            item.query.input_key: item.query for item in self.plan.external_requirements
+        }
+        for dataset in self.datasets:
+            planned = requirements[dataset.input_key]
+            actual = dataset.evidence.query
+            if (
+                planned.dataset_key,
+                planned.fields,
+                planned.filters,
+                planned.symbol_count,
+                planned.symbol_set_fingerprint,
+                planned.missing_policy,
+            ) != (
+                actual.dataset_key,
+                actual.fields,
+                actual.filters,
+                actual.symbol_count,
+                actual.symbol_set_fingerprint,
+                actual.missing_policy,
+            ):
+                raise ValueError("resolved Dataset evidence does not match planned query")
         object.__setattr__(self, "datasets", tuple(self.datasets))
 
 
@@ -179,22 +212,36 @@ class ReplayStageResult:
 class ReplayProgress:
     plan: ReplayDayPlan
     completed_stages: tuple[ReplayStageResult, ...] = ()
+    processed_attempt_count: int | None = None
 
     def __post_init__(self) -> None:
-        if len(self.completed_stages) > len(self.plan.attempts):
-            raise ValueError("completed stages cannot exceed planned attempts")
-        for index, result in enumerate(self.completed_stages):
-            if result.attempt != self.plan.attempts[index]:
-                raise ValueError("completed stages must follow the planned attempt order")
+        processed_attempt_count = (
+            len(self.completed_stages)
+            if self.processed_attempt_count is None
+            else self.processed_attempt_count
+        )
+        if not 0 <= processed_attempt_count <= len(self.plan.attempts):
+            raise ValueError("processed_attempt_count is outside the replay plan")
+        if len(self.completed_stages) > processed_attempt_count:
+            raise ValueError("completed stages cannot exceed processed attempts")
+        positions = {attempt: index for index, attempt in enumerate(self.plan.attempts)}
+        completed_positions = [positions.get(result.attempt) for result in self.completed_stages]
+        if any(position is None for position in completed_positions):
+            raise ValueError("completed stage is not part of the replay plan")
+        if completed_positions != sorted(completed_positions) or any(
+            position >= processed_attempt_count for position in completed_positions
+        ):
+            raise ValueError("completed stages must follow processed attempt order")
         object.__setattr__(self, "completed_stages", tuple(self.completed_stages))
+        object.__setattr__(self, "processed_attempt_count", processed_attempt_count)
 
     @property
     def is_complete(self) -> bool:
-        return len(self.completed_stages) == len(self.plan.attempts)
+        return self.processed_attempt_count == len(self.plan.attempts)
 
     @property
     def next_attempt(self) -> ReplayStageAttempt | None:
-        return None if self.is_complete else self.plan.attempts[len(self.completed_stages)]
+        return None if self.is_complete else self.plan.attempts[self.processed_attempt_count]
 
     def advance(self, result: ReplayStageResult) -> ReplayProgress:
         expected = self.next_attempt
@@ -202,7 +249,20 @@ class ReplayProgress:
             raise ValueError("cannot advance a completed replay")
         if result.attempt != expected:
             raise ValueError("stage result does not match next planned attempt")
-        return ReplayProgress(self.plan, (*self.completed_stages, result))
+        return ReplayProgress(
+            self.plan,
+            (*self.completed_stages, result),
+            self.processed_attempt_count + 1,
+        )
+
+    def skip_next(self) -> ReplayProgress:
+        if self.next_attempt is None:
+            raise ValueError("cannot skip a completed replay")
+        return ReplayProgress(
+            self.plan,
+            self.completed_stages,
+            self.processed_attempt_count + 1,
+        )
 
 
 @dataclass(frozen=True)
@@ -238,6 +298,14 @@ class ReplayDayResult:
     def clause_traces(self) -> tuple[ClauseTrace, ...]:
         return tuple(trace for stage in self.stages for trace in stage.clause_traces)
 
+    @property
+    def stage_results(self) -> tuple[ReplayStageResult, ...]:
+        return self.stages
+
+    @property
+    def definition_hash(self) -> str:
+        return self.rule_definition_hash
+
 
 @dataclass(frozen=True)
 class ReplayResult:
@@ -271,3 +339,9 @@ class ReplayResult:
 def _require_aware(value: datetime, *, field: str) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must be timezone-aware")
+
+
+def _requirement_query(
+    requirement: DatasetQueryRequirement | QueryIntent,
+) -> QueryIntent:
+    return requirement.query if isinstance(requirement, DatasetQueryRequirement) else requirement

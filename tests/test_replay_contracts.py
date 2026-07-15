@@ -9,6 +9,7 @@ import pytest
 
 from kuiyo_rules.evidence import (
     ContentEvidence,
+    DatasetQueryRequirement,
     InputEvidence,
     KnownTimeConformance,
     QueryIntent,
@@ -64,6 +65,10 @@ def dataset_query(input_key: str = "generate.stock_quotes") -> QueryIntent:
         requested_range={"start": "2026-07-14", "end": "2026-07-14"},
         dataset_key="market.stock.quote.window",
     )
+
+
+def dataset_requirement(input_key: str = "generate.stock_quotes") -> DatasetQueryRequirement:
+    return DatasetQueryRequirement(dataset_query(input_key))
 
 
 def dataset_evidence(query: QueryIntent) -> InputEvidence:
@@ -128,7 +133,8 @@ def test_replay_progress_advances_in_planned_order() -> None:
         minute=46,
     )
     progress = ReplayProgress(
-        ReplayDayPlan(day, "Asia/Shanghai", (generate, evaluate))
+        ReplayDayPlan(day, "Asia/Shanghai", (generate, evaluate)),
+        processed_attempt_count=0,
     )
 
     assert progress.next_attempt == generate
@@ -152,11 +158,28 @@ def test_replay_progress_rejects_skipped_stage() -> None:
         minute=46,
     )
     progress = ReplayProgress(
-        ReplayDayPlan(day, "Asia/Shanghai", (generate, evaluate))
+        ReplayDayPlan(day, "Asia/Shanghai", (generate, evaluate)),
+        processed_attempt_count=0,
     )
 
     with pytest.raises(ValueError, match="next planned"):
         progress.advance(stage_result(evaluate))
+
+
+def test_replay_progress_can_skip_a_conditional_attempt_without_fake_output() -> None:
+    day = date(2026, 7, 14)
+    first = attempt(day)
+    second = attempt(day, key="generate.0937", minute=37)
+    evaluate = attempt(day, stage="evaluate", key="evaluate.0946", minute=46)
+    progress = ReplayProgress(
+        ReplayDayPlan(day, "Asia/Shanghai", (first, second, evaluate)),
+        processed_attempt_count=0,
+    )
+
+    progress = progress.advance(stage_result(first)).skip_next()
+
+    assert progress.next_attempt == evaluate
+    assert progress.completed_stages == (stage_result(first),)
 
 
 def test_resolved_stage_data_must_match_external_requirements() -> None:
@@ -168,7 +191,7 @@ def test_resolved_stage_data_must_match_external_requirements() -> None:
         HASH,
         day,
         attempt(day),
-        (query,),
+        (DatasetQueryRequirement(query),),
     )
     resolved = ResolvedReplayDataset(
         query.input_key,
@@ -185,7 +208,7 @@ def test_resolved_stage_data_must_match_external_requirements() -> None:
 
 def test_stage_input_plan_separates_dataset_and_upstream_requirements() -> None:
     day = date(2026, 7, 14)
-    external = dataset_query()
+    external = dataset_requirement()
     upstream = QueryIntent(
         input_key="evaluate.candidates",
         input_type="stage_output",

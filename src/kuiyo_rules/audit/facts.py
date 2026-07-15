@@ -183,6 +183,7 @@ class SubjectOutcomeFact:
     reference_value: float | None = None
     quality_reasons: tuple[str, ...] = ()
     source_identity: Mapping[str, FrozenJson] = field(default_factory=dict)
+    dimensions: Mapping[str, FrozenJson] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         require_key(self.subject_type, field="subject_type")
@@ -216,6 +217,11 @@ class SubjectOutcomeFact:
             self,
             "source_identity",
             _freeze_object(self.source_identity, field="source_identity"),
+        )
+        object.__setattr__(
+            self,
+            "dimensions",
+            _freeze_object(self.dimensions, field="dimensions"),
         )
 
 

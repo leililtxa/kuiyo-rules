@@ -212,6 +212,12 @@ def test_resolved_outcome_input_accepts_dataframe_without_persisting_it() -> Non
     )
     resolved = ResolvedOutcomeInput(
         "outcome.daily",
+        QueryIntent(
+            input_key="outcome.daily",
+            input_type="dataset",
+            requested_range={},
+            dataset_key="market.stock.quote.daily",
+        ),
         pd.DataFrame([{"symbol": "600573.SH", "close_price": 10.0}]),
         (),
         content,

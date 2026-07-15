@@ -1,6 +1,7 @@
 """Pure execution evidence contracts and deterministic fingerprints."""
 
 from kuiyo_rules.evidence.contracts import (
+    DatasetQueryRequirement,
     CaptureMode,
     ConformanceStatus,
     ContentEvidence,
@@ -24,6 +25,7 @@ __all__ = [
     "CaptureMode",
     "ConformanceStatus",
     "ContentEvidence",
+    "DatasetQueryRequirement",
     "InputEvidence",
     "InputSemanticRole",
     "InputType",

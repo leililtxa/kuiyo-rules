@@ -9,6 +9,7 @@ description = "Pure rule contracts and deterministic evaluators for Kuiyo."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "numpy",
     "pandas",
 ]
 
@@ -27,4 +28,3 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["kuiyo_rules*"]
-

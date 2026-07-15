@@ -45,6 +45,23 @@ class QueryIntent:
 
 
 @dataclass(frozen=True)
+class DatasetQueryRequirement:
+    query: QueryIntent
+    symbols: tuple[str, ...] = ()
+    allow_full_scan: bool = False
+
+    def __post_init__(self) -> None:
+        if self.query.input_type != "dataset":
+            raise ValueError("Dataset query requirement requires Dataset QueryIntent")
+        symbols = tuple(dict.fromkeys(str(item) for item in self.symbols))
+        if any(not item for item in symbols):
+            raise ValueError("Dataset query symbols must not contain empty values")
+        if self.query.symbol_count != len(symbols):
+            raise ValueError("query symbol_count must match resolution symbols")
+        object.__setattr__(self, "symbols", symbols)
+
+
+@dataclass(frozen=True)
 class ResolvedSourceEvidence:
     storage_type: str
     location: str
