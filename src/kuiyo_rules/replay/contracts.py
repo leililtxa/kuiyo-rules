@@ -5,18 +5,16 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal, Protocol
 
+import pandas as pd
+
 from kuiyo_rules.clauses import ClauseTrace
-from kuiyo_rules.evidence import InputEvidence
+from kuiyo_rules.evidence import InputEvidence, QueryIntent
 from kuiyo_rules.identifiers import require_key, require_sha256, require_version
 from kuiyo_rules.serialization import FrozenJson, freeze_json
 
 
 ReplayStatus = Literal["ok", "no_candidate", "invalid_input", "evaluator_error"]
 ParityStatus = Literal["exact", "mismatch", "unavailable", "not_applicable"]
-
-
-class RuleStageInput(Protocol):
-    trade_date: date
 
 
 class RuleStageOutput(Protocol):
@@ -92,42 +90,62 @@ class ReplayPlan:
 
 
 @dataclass(frozen=True)
-class ResolvedStageInput:
-    attempt: ReplayStageAttempt
-    rule_input: RuleStageInput
-    input_evidence: tuple[InputEvidence, ...]
-
-    def __post_init__(self) -> None:
-        if self.rule_input.trade_date != self.attempt.cutoff_at.date():
-            raise ValueError("rule_input trade_date must match attempt cutoff_at")
-        input_keys = [item.query.input_key for item in self.input_evidence]
-        if len(set(input_keys)) != len(input_keys):
-            raise ValueError("input_evidence must have unique input_key values")
-        object.__setattr__(self, "input_evidence", tuple(self.input_evidence))
-
-
-@dataclass(frozen=True)
-class ResolvedInputBundle:
+class ReplayStageInputPlan:
     rule_key: str
     rule_version: str
     rule_definition_hash: str
     trade_date: date
-    stages: tuple[ResolvedStageInput, ...]
+    attempt: ReplayStageAttempt
+    requirements: tuple[QueryIntent, ...]
 
     def __post_init__(self) -> None:
         require_key(self.rule_key, field="rule_key")
         require_version(self.rule_version, field="rule_version")
         require_sha256(self.rule_definition_hash, field="rule_definition_hash")
-        if not self.stages:
-            raise ValueError("stages must not be empty")
-        identities = {
-            (item.attempt.stage_key, item.attempt.attempt_key) for item in self.stages
-        }
-        if len(identities) != len(self.stages):
-            raise ValueError("stages must have unique stage/attempt identities")
-        if any(item.rule_input.trade_date != self.trade_date for item in self.stages):
-            raise ValueError("all stage inputs must match bundle trade_date")
-        object.__setattr__(self, "stages", tuple(self.stages))
+        if self.attempt.cutoff_at.date() != self.trade_date:
+            raise ValueError("attempt cutoff_at must match plan trade_date")
+        input_keys = [item.input_key for item in self.requirements]
+        if len(set(input_keys)) != len(input_keys):
+            raise ValueError("requirements must have unique input_key values")
+        object.__setattr__(self, "requirements", tuple(self.requirements))
+
+    @property
+    def external_requirements(self) -> tuple[QueryIntent, ...]:
+        return tuple(item for item in self.requirements if item.input_type == "dataset")
+
+    @property
+    def upstream_requirements(self) -> tuple[QueryIntent, ...]:
+        return tuple(item for item in self.requirements if item.input_type == "stage_output")
+
+
+@dataclass(frozen=True)
+class ResolvedReplayDataset:
+    input_key: str
+    frame: pd.DataFrame
+    evidence: InputEvidence
+
+    def __post_init__(self) -> None:
+        require_key(self.input_key, field="input_key")
+        if self.evidence.query.input_type != "dataset":
+            raise ValueError("resolved replay data must be a Dataset input")
+        if self.evidence.query.input_key != self.input_key:
+            raise ValueError("resolved input_key must match evidence query input_key")
+
+
+@dataclass(frozen=True)
+class ResolvedReplayStageData:
+    plan: ReplayStageInputPlan
+    datasets: tuple[ResolvedReplayDataset, ...]
+
+    def __post_init__(self) -> None:
+        keys = [item.input_key for item in self.datasets]
+        if len(set(keys)) != len(keys):
+            raise ValueError("datasets must have unique input_key values")
+        required = {item.input_key for item in self.plan.external_requirements}
+        resolved = set(keys)
+        if required != resolved:
+            raise ValueError("resolved datasets must exactly match external requirements")
+        object.__setattr__(self, "datasets", tuple(self.datasets))
 
 
 @dataclass(frozen=True)
@@ -155,6 +173,36 @@ class ReplayStageResult:
                 require_sha256(value, field=field_name)
         object.__setattr__(self, "clause_traces", tuple(self.clause_traces))
         object.__setattr__(self, "input_evidence", tuple(self.input_evidence))
+
+
+@dataclass(frozen=True)
+class ReplayProgress:
+    plan: ReplayDayPlan
+    completed_stages: tuple[ReplayStageResult, ...] = ()
+
+    def __post_init__(self) -> None:
+        if len(self.completed_stages) > len(self.plan.attempts):
+            raise ValueError("completed stages cannot exceed planned attempts")
+        for index, result in enumerate(self.completed_stages):
+            if result.attempt != self.plan.attempts[index]:
+                raise ValueError("completed stages must follow the planned attempt order")
+        object.__setattr__(self, "completed_stages", tuple(self.completed_stages))
+
+    @property
+    def is_complete(self) -> bool:
+        return len(self.completed_stages) == len(self.plan.attempts)
+
+    @property
+    def next_attempt(self) -> ReplayStageAttempt | None:
+        return None if self.is_complete else self.plan.attempts[len(self.completed_stages)]
+
+    def advance(self, result: ReplayStageResult) -> ReplayProgress:
+        expected = self.next_attempt
+        if expected is None:
+            raise ValueError("cannot advance a completed replay")
+        if result.attempt != expected:
+            raise ValueError("stage result does not match next planned attempt")
+        return ReplayProgress(self.plan, (*self.completed_stages, result))
 
 
 @dataclass(frozen=True)

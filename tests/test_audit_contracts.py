@@ -15,6 +15,7 @@ from kuiyo_rules.audit import (
     ResolvedOutcomeBundle,
     ResolvedOutcomeInput,
     SubjectOutcomeFact,
+    VersionComparisonFact,
     validate_audit_inputs,
 )
 from kuiyo_rules.evidence import ContentEvidence, QueryIntent
@@ -161,6 +162,42 @@ def test_validate_audit_inputs_rejects_missing_resolved_requirement() -> None:
 
     with pytest.raises(ValueError, match="exactly match"):
         validate_audit_inputs(replay=replay, outcome_plan=plan, outcome_bundle=bundle)
+
+
+def test_outcome_requirement_uses_query_input_key_as_single_identity() -> None:
+    query = QueryIntent(
+        input_key="outcome.daily",
+        input_type="dataset",
+        requested_range={"start": "2026-07-15", "end": "2026-07-15"},
+        dataset_key="market.stock.quote.daily",
+    )
+    from kuiyo_rules.audit import OutcomeRequirement
+
+    with pytest.raises(ValueError, match="must match"):
+        OutcomeRequirement("another.key", date(2026, 7, 15), query)
+
+
+def test_version_comparison_requires_both_definition_hashes() -> None:
+    fact = VersionComparisonFact(
+        baseline_rule_key="opening_candidate_watch",
+        baseline_rule_version="v001",
+        baseline_rule_definition_hash=RULE_HASH,
+        comparison_rule_key="opening_candidate_watch",
+        comparison_rule_version="v002",
+        comparison_rule_definition_hash="d" * 64,
+        window_start_trade_date=date(2026, 7, 14),
+        window_end_trade_date=date(2026, 7, 15),
+        group_key="all",
+        outcome_key="t1_open",
+        horizon="T+1",
+        paired_day_count=2,
+        statistics_status="insufficient_sample",
+        source_fingerprint=CONTENT_HASH,
+        metrics={},
+    )
+
+    assert fact.baseline_rule_definition_hash == RULE_HASH
+    assert fact.comparison_rule_definition_hash == "d" * 64
 
 
 def test_resolved_outcome_input_accepts_dataframe_without_persisting_it() -> None:

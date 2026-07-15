@@ -315,8 +315,10 @@ class HealthWindowFact:
 class VersionComparisonFact:
     baseline_rule_key: str
     baseline_rule_version: str
+    baseline_rule_definition_hash: str
     comparison_rule_key: str
     comparison_rule_version: str
+    comparison_rule_definition_hash: str
     window_start_trade_date: date
     window_end_trade_date: date
     group_key: str
@@ -330,8 +332,16 @@ class VersionComparisonFact:
     def __post_init__(self) -> None:
         require_key(self.baseline_rule_key, field="baseline_rule_key")
         require_version(self.baseline_rule_version, field="baseline_rule_version")
+        require_sha256(
+            self.baseline_rule_definition_hash,
+            field="baseline_rule_definition_hash",
+        )
         require_key(self.comparison_rule_key, field="comparison_rule_key")
         require_version(self.comparison_rule_version, field="comparison_rule_version")
+        require_sha256(
+            self.comparison_rule_definition_hash,
+            field="comparison_rule_definition_hash",
+        )
         if (
             self.baseline_rule_key,
             self.baseline_rule_version,

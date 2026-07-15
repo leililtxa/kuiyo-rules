@@ -43,6 +43,8 @@ class OutcomeRequirement:
         require_key(self.requirement_key, field="requirement_key")
         if self.query.input_type != "dataset":
             raise ValueError("outcome requirements must resolve Dataset input")
+        if self.requirement_key != self.query.input_key:
+            raise ValueError("requirement_key must match query input_key")
 
 
 @dataclass(frozen=True)
