@@ -110,6 +110,31 @@ def test_candidate_handoff_uses_stable_score_precision() -> None:
     assert candidate_handoff_from_output(output).iloc[0]["score"] == 0.904705882352941
 
 
+def test_candidate_handoff_keeps_missing_auction_as_partial_artifact() -> None:
+    output = OpeningCandidateGenerateOutput(
+        status="ok",
+        data_quality="partial",
+        market_policy={},
+        selected_industries=pd.DataFrame(),
+        candidates=pd.DataFrame(
+            [{
+                "symbol": "000001.SZ",
+                "trade_date": date(2026, 7, 3),
+                "candidate_score_live_industry_momentum_v0_1": 0.8,
+                "auction_data_quality": "missing",
+                "auction_data_quality_reason": "open_auction_missing",
+            }]
+        ),
+        summary={},
+    )
+
+    candidate = candidate_handoff_from_output(output).iloc[0]
+
+    assert candidate["data_quality"] == "partial"
+    assert candidate["metrics"]["auction_data_quality"] == "missing"
+    assert candidate["metrics"]["auction_data_quality_reason"] == "open_auction_missing"
+
+
 def test_evaluation_handoff_only_keeps_tier_contract_metrics() -> None:
     output = CandidateEvaluationOutput(
         status="ok",

@@ -34,3 +34,28 @@ def frame_data_quality(frame: pd.DataFrame, *, column: str = "data_quality") -> 
     if frame.empty or column not in frame:
         return "missing"
     return aggregate_data_quality(frame[column].tolist())
+
+
+def materialized_data_quality(
+    values: Iterable[object],
+    *,
+    default: str = "normal",
+) -> str:
+    quality = aggregate_data_quality(values, default=default)
+    return "partial" if quality == "missing" else quality
+
+
+def frame_result_data_quality(
+    frame: pd.DataFrame,
+    *,
+    column: str = "data_quality",
+) -> str:
+    if frame.empty or column not in frame:
+        return "missing"
+    qualities = [clean_quality(value) for value in frame[column].tolist()]
+    qualities = [quality for quality in qualities if quality]
+    if not qualities or all(quality == "missing" for quality in qualities):
+        return "missing"
+    if "missing" in qualities:
+        return "partial"
+    return aggregate_data_quality(qualities)

@@ -12,8 +12,8 @@ from kuiyo_rules.evaluation.opening_candidate.evaluation_rules import (
 )
 from kuiyo_rules.evaluation.opening_candidate.generate import rule_identity
 from kuiyo_rules.evaluation.opening_candidate.parameters import evaluation_parameters
-from kuiyo_rules.quality import frame_data_quality
 from kuiyo_rules.evaluation.opening_candidate.traces import evaluation_clause_traces
+from kuiyo_rules.quality import frame_result_data_quality
 
 
 def evaluate_opening_candidates(
@@ -51,9 +51,10 @@ def evaluate_opening_candidates(
             ),
         )
     counts = Counter(str(value) for value in evaluations["decision"])
-    data_quality = frame_data_quality(evaluations)
+    data_quality = frame_result_data_quality(evaluations)
+    status = "missing_data" if data_quality == "missing" else "ok"
     return CandidateEvaluationOutput(
-        status="ok",
+        status=status,
         data_quality=data_quality,
         evaluations=evaluations,
         summary={
@@ -69,7 +70,7 @@ def evaluate_opening_candidates(
             rule_version=rule_version,
             cutoff_at=rule_input.evaluation_cutoff_at,
             evaluations=evaluations,
-            status="ok",
+            status=status,
             data_quality=data_quality,
         ),
     )

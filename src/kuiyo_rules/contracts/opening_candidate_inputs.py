@@ -13,6 +13,7 @@ from kuiyo_rules.contracts.opening_candidate import (
     OpeningCandidateGenerateOutput,
 )
 from kuiyo_rules.numeric import none_float
+from kuiyo_rules.quality import materialized_data_quality
 
 
 GENERATE_STOCK_QUOTE_COLUMNS = (
@@ -115,7 +116,9 @@ def candidate_handoff_from_frame(
 ) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for ordinal, row in enumerate(candidates.to_dict(orient="records"), start=1):
-        quality = str(row.get("auction_data_quality") or fallback_data_quality)
+        quality = materialized_data_quality(
+            (fallback_data_quality, row.get("auction_data_quality")),
+        )
         rows.append(
             {
                 "candidate_key": str(row["symbol"]),

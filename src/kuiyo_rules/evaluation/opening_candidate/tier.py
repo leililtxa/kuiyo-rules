@@ -10,8 +10,8 @@ from kuiyo_rules.evaluation.opening_candidate.generate import rule_identity
 from kuiyo_rules.evaluation.opening_candidate.parameters import tier_parameters
 from kuiyo_rules.evaluation.opening_candidate.tier_features import build_watch_tier_features
 from kuiyo_rules.evaluation.opening_candidate.tier_rules import apply_watch_tiers
-from kuiyo_rules.quality import frame_data_quality
 from kuiyo_rules.evaluation.opening_candidate.traces import tier_clause_traces
+from kuiyo_rules.quality import frame_result_data_quality
 
 
 def tier_opening_candidates(
@@ -45,9 +45,10 @@ def tier_opening_candidates(
     )
     tiers = apply_watch_tiers(features)
     counts = Counter(str(value) for value in tiers["watch_level"])
-    data_quality = frame_data_quality(tiers)
+    data_quality = frame_result_data_quality(tiers)
+    status = "missing_data" if data_quality == "missing" else "ok"
     return CandidateTierOutput(
-        status="ok",
+        status=status,
         data_quality=data_quality,
         tiers=tiers,
         summary={
@@ -60,7 +61,7 @@ def tier_opening_candidates(
             rule_version=rule_version,
             cutoff_at=rule_input.cutoff_at,
             tiers=tiers,
-            status="ok",
+            status=status,
             data_quality=data_quality,
         ),
     )

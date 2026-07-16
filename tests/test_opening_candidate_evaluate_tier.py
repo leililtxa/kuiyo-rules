@@ -102,6 +102,20 @@ def test_evaluate_opening_candidates_marks_missing_checkpoint_invalid() -> None:
     assert first["decision"] == "invalid"
     assert first["hard_tags"] == ["missing_stock_checkpoint"]
     assert first["data_quality"] == "missing"
+    assert output.status == "ok"
+    assert output.data_quality == "partial"
+
+
+def test_evaluate_opening_candidates_reports_all_missing_results() -> None:
+    inputs = evaluation_input()
+    output = evaluate_opening_candidates(
+        rule_version=OPENING_CANDIDATE_BASELINE_V001,
+        rule_input=replace(inputs, stock_quotes=pd.DataFrame()),
+    )
+
+    assert output.status == "missing_data"
+    assert output.data_quality == "missing"
+    assert set(output.evaluations["decision"]) == {"invalid"}
 
 
 def test_execution_confirmation_keeps_shadow_candidate_as_observe() -> None:
