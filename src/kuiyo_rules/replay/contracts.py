@@ -8,7 +8,12 @@ from typing import Literal, Protocol
 import pandas as pd
 
 from kuiyo_rules.clauses import ClauseTrace
-from kuiyo_rules.evidence import DatasetQueryRequirement, InputEvidence, QueryIntent
+from kuiyo_rules.evidence import (
+    DatasetQueryRequirement,
+    InputEvidence,
+    QueryIntent,
+    ResolutionEvidence,
+)
 from kuiyo_rules.identifiers import require_key, require_sha256, require_version
 from kuiyo_rules.serialization import FrozenJson, freeze_json
 
@@ -133,13 +138,13 @@ class ReplayStageInputPlan:
 class ResolvedReplayDataset:
     input_key: str
     frame: pd.DataFrame
-    evidence: InputEvidence
+    resolution_evidence: ResolutionEvidence
 
     def __post_init__(self) -> None:
         require_key(self.input_key, field="input_key")
-        if self.evidence.query.input_type != "dataset":
+        if self.resolution_evidence.query.input_type != "dataset":
             raise ValueError("resolved replay data must be a Dataset input")
-        if self.evidence.query.input_key != self.input_key:
+        if self.resolution_evidence.query.input_key != self.input_key:
             raise ValueError("resolved input_key must match evidence query input_key")
 
 
@@ -161,7 +166,7 @@ class ResolvedReplayStageData:
         }
         for dataset in self.datasets:
             planned = requirements[dataset.input_key]
-            actual = dataset.evidence.query
+            actual = dataset.resolution_evidence.query
             if (
                 planned.dataset_key,
                 planned.fields,

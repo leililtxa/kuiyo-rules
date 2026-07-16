@@ -10,6 +10,7 @@ from kuiyo_rules.evidence.contracts import (
     InputType,
     KnownTimeConformance,
     QueryIntent,
+    ResolutionEvidence,
     ResolvedSourceEvidence,
     TemporalCapability,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "InputType",
     "KnownTimeConformance",
     "QueryIntent",
+    "ResolutionEvidence",
     "ResolvedSourceEvidence",
     "TemporalCapability",
     "dataframe_fingerprint",

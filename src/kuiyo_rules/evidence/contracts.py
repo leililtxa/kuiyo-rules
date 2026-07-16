@@ -109,6 +109,21 @@ class KnownTimeConformance:
 
 
 @dataclass(frozen=True)
+class ResolutionEvidence:
+    query: QueryIntent
+    resolved_sources: tuple[ResolvedSourceEvidence, ...]
+    content: ContentEvidence
+    captured_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.query.input_type != "dataset":
+            raise ValueError("resolution evidence requires a Dataset query")
+        if self.captured_at.tzinfo is None or self.captured_at.utcoffset() is None:
+            raise ValueError("captured_at must be timezone-aware")
+        object.__setattr__(self, "resolved_sources", tuple(self.resolved_sources))
+
+
+@dataclass(frozen=True)
 class InputEvidence:
     query: QueryIntent
     resolved_sources: tuple[ResolvedSourceEvidence, ...]

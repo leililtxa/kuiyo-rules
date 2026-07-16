@@ -8,7 +8,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from kuiyo_rules.contracts import (
+    CandidateEvaluationInput,
     CandidateEvaluationOutput,
+    CandidateTierInput,
+    OpeningCandidateGenerateInput,
     OpeningCandidateGenerateOutput,
     build_evaluation_input,
     build_generate_input,
@@ -16,12 +19,15 @@ from kuiyo_rules.contracts import (
     candidate_handoff_from_output,
 )
 from kuiyo_rules.definitions import ResearchRuleVersion
+from kuiyo_rules.definitions.input_contract import (
+    rule_input_int,
+    rule_input_strings,
+    rule_input_text,
+)
 from kuiyo_rules.evidence import (
-    ContentEvidence,
     DatasetQueryRequirement,
     InputEvidence,
     InputSemanticRole,
-    KnownTimeConformance,
     QueryIntent,
     dataframe_fingerprint,
     semantic_fingerprint,
@@ -34,6 +40,12 @@ from kuiyo_rules.replay.contracts import (
     ReplayStageInputPlan,
     ReplayStageResult,
     ResolvedReplayStageData,
+)
+from kuiyo_rules.replay.opening_candidate_evidence import (
+    evaluate_execution_evidence,
+    generate_execution_evidence,
+    resolution_mapping,
+    stage_output_evidence,
 )
 
 
@@ -137,16 +149,23 @@ class OpeningCandidateReplayPolicy:
     ) -> tuple[object, tuple[InputEvidence, ...]]:
         attempt = resolved.plan.attempt
         frames = {item.input_key: item.frame for item in resolved.datasets}
-        evidence = [item.evidence for item in resolved.datasets]
         if attempt.stage_key == "generate":
-            return (
+            rule_input = cast(
+                OpeningCandidateGenerateInput,
                 build_generate_rule_input(
                     rule_version=rule_version,
                     trade_date=progress.plan.trade_date,
                     cutoff_at=attempt.cutoff_at,
                     frames=frames,
                 ),
-                tuple(evidence),
+            )
+            return (
+                rule_input,
+                generate_execution_evidence(
+                    rule_input,
+                    rule_version=rule_version,
+                    resolutions=resolution_mapping(resolved),
+                ),
             )
         primary = primary_generate_result(progress.completed_stages)
         if primary is None:
@@ -155,17 +174,8 @@ class OpeningCandidateReplayPolicy:
             cast(OpeningCandidateGenerateOutput, primary.rule_output)
         )
         if attempt.stage_key == "evaluate":
-            evidence.insert(
-                0,
-                stage_output_evidence(
-                    primary,
-                    input_key="evaluate.candidates",
-                    output_contract="opening_candidate.generate.output/v001",
-                    frame=candidates,
-                    decision_cutoff_at=attempt.cutoff_at,
-                ),
-            )
-            return (
+            rule_input = cast(
+                CandidateEvaluationInput,
                 build_evaluate_rule_input(
                     rule_version=rule_version,
                     trade_date=progress.plan.trade_date,
@@ -174,19 +184,37 @@ class OpeningCandidateReplayPolicy:
                     candidates=candidates,
                     frames=frames,
                 ),
-                tuple(evidence),
+            )
+            return (
+                rule_input,
+                evaluate_execution_evidence(
+                    rule_input,
+                    rule_version=rule_version,
+                    resolutions=resolution_mapping(resolved),
+                    candidate_evidence=stage_output_evidence(
+                        primary,
+                        input_key="evaluate.candidates",
+                        output_contract="opening_candidate.generate.output/v001",
+                        frame=candidates,
+                        decision_cutoff_at=attempt.cutoff_at,
+                    ),
+                ),
             )
         evaluation = latest_stage(progress.completed_stages, "evaluate")
         if evaluation is None:
             raise ValueError("tier requires evaluation output")
         evaluation_frame = cast(CandidateEvaluationOutput, evaluation.rule_output).evaluations
-        return (
+        rule_input = cast(
+            CandidateTierInput,
             build_tier_input(
                 trade_date=progress.plan.trade_date,
                 cutoff_at=attempt.cutoff_at,
                 candidates=candidates,
                 evaluations=evaluation_frame,
             ),
+        )
+        return (
+            rule_input,
             (
                 stage_output_evidence(
                     primary,
@@ -230,10 +258,10 @@ class OpeningCandidateReplayPolicy:
     ) -> tuple[QueryIntent, ...]:
         trade_date = progress.plan.trade_date
         if attempt.stage_key == "generate":
-            lookback = _input_int(rule_version, "daily_lookback_days")
-            classification = _input_text(rule_version, "classification_system")
-            level = _input_int(rule_version, "industry_level")
-            universe = _input_strings(rule_version, "universe_index_symbols")
+            lookback = rule_input_int(rule_version, "daily_lookback_days")
+            classification = rule_input_text(rule_version, "classification_system")
+            level = rule_input_int(rule_version, "industry_level")
+            universe = rule_input_strings(rule_version, "universe_index_symbols")
             return (
                 _dataset_query(
                     "generate.trading_calendar",
@@ -318,8 +346,8 @@ class OpeningCandidateReplayPolicy:
             cast(OpeningCandidateGenerateOutput, primary.rule_output)
         )
         if attempt.stage_key == "evaluate":
-            classification = _input_text(rule_version, "classification_system")
-            level = _input_int(rule_version, "industry_level")
+            classification = rule_input_text(rule_version, "classification_system")
+            level = rule_input_int(rule_version, "industry_level")
             return (
                 _stage_query(
                     "evaluate.candidates",
@@ -383,7 +411,7 @@ class OpeningCandidateReplayPolicy:
                         "previous_close_price", "open_price", "last_price", "volume",
                         "turnover_amount_yuan",
                     ),
-                    symbols=_input_strings(rule_version, "focus_index_symbols"),
+                    symbols=rule_input_strings(rule_version, "focus_index_symbols"),
                     missing_policy="allow_empty",
                 ),
             )
@@ -483,7 +511,7 @@ def build_evaluate_rule_input(
         industry_quotes["symbol"].astype(str).isin(industry_symbols)
     ]
     index_quotes = frames["evaluate.index_window"]
-    focus = set(_input_strings(rule_version, "focus_index_symbols"))
+    focus = set(rule_input_strings(rule_version, "focus_index_symbols"))
     index_quotes = index_quotes[index_quotes["symbol"].astype(str).isin(focus)]
     return build_evaluation_input(
         trade_date=trade_date,
@@ -526,72 +554,6 @@ def aggregate_quality(completed: Sequence[ReplayStageResult]) -> str:
         if quality in qualities:
             return quality
     return "normal"
-
-
-def stage_output_evidence(
-    upstream: ReplayStageResult,
-    *,
-    input_key: str,
-    output_contract: str,
-    frame: pd.DataFrame,
-    decision_cutoff_at: datetime,
-) -> InputEvidence:
-    fingerprint = dataframe_fingerprint(frame)
-    decision_inputs = tuple(
-        item for item in upstream.input_evidence if item.query.semantic_role == "decision"
-    )
-    statuses = [item.conformance.status for item in decision_inputs]
-    capabilities = [item.conformance.temporal_capability for item in decision_inputs]
-    reasons = tuple(
-        dict.fromkeys(
-            reason for item in decision_inputs for reason in item.conformance.reasons
-        )
-    )
-    captured_at = max(
-        (item.conformance.captured_at for item in upstream.input_evidence),
-        default=upstream.attempt.cutoff_at,
-    )
-    return InputEvidence(
-        query=QueryIntent(
-            input_key,
-            "stage_output",
-            {},
-            upstream_stage_key=upstream.attempt.stage_key,
-            upstream_attempt_key=upstream.attempt.attempt_key,
-            upstream_output_contract=output_contract,
-            upstream_content_fingerprint=fingerprint,
-        ),
-        resolved_sources=(),
-        content=ContentEvidence(
-            row_count=len(frame),
-            entity_count=_frame_entity_count(frame),
-            observation_count=len(frame),
-            content_fingerprint=fingerprint,
-            max_known_at=upstream.attempt.cutoff_at.isoformat(),
-            quality=upstream.data_quality,
-            quality_reasons=(),
-        ),
-        conformance=KnownTimeConformance(
-            decision_cutoff_at=decision_cutoff_at,
-            capture_mode="historical_reconstruction",
-            captured_at=captured_at,
-            temporal_capability=(
-                "current_snapshot"
-                if "current_snapshot" in capabilities
-                else "point_in_time"
-                if capabilities and all(item == "point_in_time" for item in capabilities)
-                else "unknown"
-            ),
-            status=(
-                "invalid"
-                if "invalid" in statuses
-                else "degraded"
-                if not statuses or "degraded" in statuses
-                else "valid"
-            ),
-            reasons=reasons,
-        ),
-    )
 
 
 def universe_as_of(frame: pd.DataFrame, *, trade_date: date) -> pd.DataFrame:
@@ -754,27 +716,6 @@ def _mapping(container: Mapping[str, object], key: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise ValueError(f"invalid rule decision policy: {key}")
     return value
-
-
-def _input_text(version: ResearchRuleVersion, key: str) -> str:
-    value = version.input_contract.get(key)
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"invalid rule input contract value: {key}")
-    return value
-
-
-def _input_int(version: ResearchRuleVersion, key: str) -> int:
-    value = version.input_contract.get(key)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"invalid rule input contract value: {key}")
-    return int(value)
-
-
-def _input_strings(version: ResearchRuleVersion, key: str) -> tuple[str, ...]:
-    value = version.input_contract.get(key)
-    if not isinstance(value, tuple) or not value:
-        raise ValueError(f"invalid rule input contract value: {key}")
-    return tuple(str(item) for item in value)
 
 
 def _next_attempt(progress: ReplayProgress) -> ReplayStageAttempt:

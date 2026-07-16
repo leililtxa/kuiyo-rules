@@ -10,9 +10,8 @@ import pytest
 from kuiyo_rules.evidence import (
     ContentEvidence,
     DatasetQueryRequirement,
-    InputEvidence,
-    KnownTimeConformance,
     QueryIntent,
+    ResolutionEvidence,
 )
 from kuiyo_rules.replay import (
     OPENING_CANDIDATE_REPLAY_POLICY,
@@ -73,8 +72,8 @@ def dataset_requirement(input_key: str = "generate.stock_quotes") -> DatasetQuer
     return DatasetQueryRequirement(dataset_query(input_key))
 
 
-def dataset_evidence(query: QueryIntent) -> InputEvidence:
-    return InputEvidence(
+def dataset_resolution_evidence(query: QueryIntent) -> ResolutionEvidence:
+    return ResolutionEvidence(
         query=query,
         resolved_sources=(),
         content=ContentEvidence(
@@ -86,13 +85,7 @@ def dataset_evidence(query: QueryIntent) -> InputEvidence:
             quality="normal",
             quality_reasons=(),
         ),
-        conformance=KnownTimeConformance(
-            decision_cutoff_at=datetime(2026, 7, 14, 9, 36, tzinfo=TZ),
-            capture_mode="historical_reconstruction",
-            captured_at=datetime(2026, 7, 15, 19, 0, tzinfo=TZ),
-            temporal_capability="point_in_time",
-            status="valid",
-        ),
+        captured_at=datetime(2026, 7, 15, 19, 0, tzinfo=TZ),
     )
 
 
@@ -198,7 +191,7 @@ def test_resolved_stage_data_must_match_external_requirements() -> None:
     resolved = ResolvedReplayDataset(
         query.input_key,
         pd.DataFrame([{"symbol": "600573.SH"}]),
-        dataset_evidence(query),
+        dataset_resolution_evidence(query),
     )
 
     bundle = ResolvedReplayStageData(plan, (resolved,))
