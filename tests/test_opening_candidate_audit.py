@@ -14,6 +14,7 @@ from kuiyo_rules.audit import (
     ResolvedOutcomeInput,
     build_opening_candidate_outcome_plan,
     compute_opening_candidate_audit,
+    get_audit_specification,
     ProductionStageEvidence,
 )
 from kuiyo_rules.evidence import ContentEvidence
@@ -40,6 +41,13 @@ def test_opening_candidate_audit_plans_external_outcome_datasets() -> None:
         "market.stock.quote.minute",
     ]
     assert plan.requirements[1].symbols == ("600001.SH",)
+
+
+def test_audit_specification_registry_resolves_canonical_identity() -> None:
+    assert (
+        get_audit_specification("AUDIT-001", "v001")
+        is OPENING_CANDIDATE_AUDIT_V001
+    )
 
 
 def test_opening_candidate_audit_returns_typed_mature_and_pending_facts() -> None:

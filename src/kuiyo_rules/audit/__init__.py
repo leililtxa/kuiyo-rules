@@ -40,6 +40,7 @@ from kuiyo_rules.audit.parity import (
     aggregate_parity,
     compare_production_replay,
 )
+from kuiyo_rules.audit.registry import AuditSpecificationRegistry
 
 __all__ = [
     "AuditAsOf",
@@ -73,4 +74,18 @@ __all__ = [
     "StageParity",
     "aggregate_parity",
     "compare_production_replay",
+    "AuditSpecificationRegistry",
+    "DEFAULT_AUDIT_SPECIFICATIONS",
+    "get_audit_specification",
 ]
+
+DEFAULT_AUDIT_SPECIFICATIONS = AuditSpecificationRegistry(
+    (OPENING_CANDIDATE_AUDIT_V001,)
+)
+
+
+def get_audit_specification(
+    audit_spec_key: str,
+    audit_spec_version: str,
+) -> AuditSpecification:
+    return DEFAULT_AUDIT_SPECIFICATIONS.get(audit_spec_key, audit_spec_version)
