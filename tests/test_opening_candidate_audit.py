@@ -14,6 +14,7 @@ from kuiyo_rules.audit import (
     ResolvedOutcomeInput,
     build_opening_candidate_outcome_plan,
     compute_opening_candidate_audit,
+    ProductionStageEvidence,
 )
 from kuiyo_rules.evidence import ContentEvidence
 from kuiyo_rules.replay import ReplayDayResult, ReplayResult, ReplayStageAttempt, ReplayStageResult
@@ -121,6 +122,89 @@ def test_opening_candidate_audit_returns_typed_mature_and_pending_facts() -> Non
     assert outcomes["t1_open"].value_number == pytest.approx(0.06)
     assert result.summary.coverage_status == "maturing"
     assert result.replay_days[0].candidate_count == 1
+
+
+def test_opening_candidate_audit_compares_production_execution_evidence() -> None:
+    replay = replay_result(candidate=True)
+    stage = replay.days[0].stages[0]
+    production = ProductionStageEvidence(
+        replay.rule_key,
+        replay.rule_version,
+        replay.rule_definition_hash,
+        replay.days[0].trade_date,
+        stage.attempt.stage_key,
+        stage.attempt.attempt_key,
+        stage.typed_input_fingerprint,
+        stage.rule_output_fingerprint,
+        "9" * 64,
+    )
+    as_of = AuditAsOf(date(2026, 7, 15), date(2026, 7, 14))
+    plan = build_opening_candidate_outcome_plan(
+        replay=replay,
+        specification=OPENING_CANDIDATE_AUDIT_V001,
+        as_of=as_of,
+    )
+    bundle = ResolvedOutcomeBundle(
+        plan.identity,
+        as_of,
+        tuple(
+            ResolvedOutcomeInput(
+                item.requirement_key,
+                item.query,
+                pd.DataFrame(),
+                (),
+                content(item.requirement_key),
+            )
+            for item in plan.requirements
+        ),
+    )
+
+    result = compute_opening_candidate_audit(
+        replay=replay,
+        specification=OPENING_CANDIDATE_AUDIT_V001,
+        outcome_plan=plan,
+        outcome_bundle=bundle,
+        production_evidence=(production,),
+    )
+
+    assert result.replay_days[0].stage_parity_status == "mismatch"
+    assert result.replay_stages[0].input_parity_status == "exact"
+    assert result.replay_stages[0].output_parity_status == "exact"
+    assert result.replay_stages[0].trace_parity_status == "mismatch"
+
+
+def test_opening_candidate_audit_marks_missing_production_evidence_unavailable() -> None:
+    replay = replay_result(candidate=True)
+    as_of = AuditAsOf(date(2026, 7, 15), date(2026, 7, 14))
+    plan = build_opening_candidate_outcome_plan(
+        replay=replay,
+        specification=OPENING_CANDIDATE_AUDIT_V001,
+        as_of=as_of,
+    )
+    bundle = ResolvedOutcomeBundle(
+        plan.identity,
+        as_of,
+        tuple(
+            ResolvedOutcomeInput(
+                item.requirement_key,
+                item.query,
+                pd.DataFrame(),
+                (),
+                content(item.requirement_key),
+            )
+            for item in plan.requirements
+        ),
+    )
+
+    result = compute_opening_candidate_audit(
+        replay=replay,
+        specification=OPENING_CANDIDATE_AUDIT_V001,
+        outcome_plan=plan,
+        outcome_bundle=bundle,
+    )
+
+    assert result.replay_days[0].stage_parity_status == "unavailable"
+    assert result.replay_stages[0].output_parity_status == "unavailable"
 
 
 def replay_result(*, candidate: bool) -> ReplayResult:

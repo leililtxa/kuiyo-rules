@@ -28,6 +28,11 @@ from kuiyo_rules.audit.facts import (
     ReplayStageFact,
     SubjectOutcomeFact,
 )
+from kuiyo_rules.audit.parity import (
+    ProductionReplayParity,
+    ProductionStageEvidence,
+    compare_production_replay,
+)
 from kuiyo_rules.audit.specifications import AuditSpecification, OutcomeDefinition
 from kuiyo_rules.contracts import (
     CandidateEvaluationOutput,
@@ -145,6 +150,7 @@ def compute_opening_candidate_audit(
     specification: AuditSpecification,
     outcome_plan: OutcomePlan,
     outcome_bundle: ResolvedOutcomeBundle,
+    production_evidence: Sequence[ProductionStageEvidence] = (),
 ) -> AuditResult:
     validate_audit_inputs(
         replay=replay,
@@ -169,14 +175,15 @@ def compute_opening_candidate_audit(
             minute_quotes=frames["outcome.stock_minute"],
             horizons=horizons,
         )
-    replay_days = tuple(replay_day_fact(identity, item) for item in replay.days)
+    parity = compare_production_replay(production_evidence, replay.days)
+    replay_days = tuple(replay_day_fact(identity, item, parity) for item in replay.days)
     replay_stages = tuple(
-        replay_stage_fact(day, stage)
+        replay_stage_fact(day, stage, parity)
         for day in replay.days
         for stage in day.stages
     )
     replay_inputs = tuple(
-        replay_input_fact(day, stage, evidence)
+        replay_input_fact(day, stage, evidence, parity)
         for day in replay.days
         for stage in day.stages
         for evidence in stage.input_evidence
@@ -541,7 +548,11 @@ def build_health_windows(
     return tuple(facts)
 
 
-def replay_day_fact(identity: AuditIdentity, replay: ReplayDayResult) -> ReplayDayFact:
+def replay_day_fact(
+    identity: AuditIdentity,
+    replay: ReplayDayResult,
+    parity: ProductionReplayParity,
+) -> ReplayDayFact:
     generates = [item for item in replay.stages if item.attempt.stage_key == "generate"]
     primary = primary_generate_result(replay.stages)
     candidate_count = (
@@ -559,14 +570,23 @@ def replay_day_fact(identity: AuditIdentity, replay: ReplayDayResult) -> ReplayD
         len(generates),
         len(replay.stages),
         replay.semantic_fingerprint,
-        "unavailable",
-        "unavailable",
+        parity.day_stage_status(replay.trade_date),
+        parity.day_input_status(replay.trade_date),
         None if primary is None else primary.attempt.cutoff_at,
         replay.errors,
     )
 
 
-def replay_stage_fact(day: ReplayDayResult, stage) -> ReplayStageFact:
+def replay_stage_fact(
+    day: ReplayDayResult,
+    stage,
+    parity: ProductionReplayParity,
+) -> ReplayStageFact:
+    stage_parity = parity.stage(
+        day.trade_date,
+        stage.attempt.stage_key,
+        stage.attempt.attempt_key,
+    )
     return ReplayStageFact(
         day.trade_date,
         stage.attempt.stage_key,
@@ -577,16 +597,29 @@ def replay_stage_fact(day: ReplayDayResult, stage) -> ReplayStageFact:
         stage.typed_input_fingerprint,
         stage.rule_output_fingerprint,
         stage.clause_trace_fingerprint,
-        "unavailable",
-        "unavailable",
-        "unavailable",
-        dict(stage.rule_output.summary),
+        "unavailable" if stage_parity is None else stage_parity.input_status,
+        "unavailable" if stage_parity is None else stage_parity.output_status,
+        "unavailable" if stage_parity is None else stage_parity.trace_status,
+        {
+            **dict(stage.rule_output.summary),
+            "parity_reasons": [] if stage_parity is None else list(stage_parity.reasons),
+        },
         {},
     )
 
 
-def replay_input_fact(day: ReplayDayResult, stage, evidence) -> ReplayInputFact:
+def replay_input_fact(
+    day: ReplayDayResult,
+    stage,
+    evidence,
+    parity: ProductionReplayParity,
+) -> ReplayInputFact:
     query = evidence.query
+    stage_parity = parity.stage(
+        day.trade_date,
+        stage.attempt.stage_key,
+        stage.attempt.attempt_key,
+    )
     return ReplayInputFact(
         day.trade_date,
         stage.attempt.stage_key,
@@ -597,7 +630,11 @@ def replay_input_fact(day: ReplayDayResult, stage, evidence) -> ReplayInputFact:
         evidence.conformance.status,
         evidence.content.content_fingerprint,
         input_evidence_semantic_fingerprint(evidence),
-        "unavailable",
+        (
+            "unavailable"
+            if stage_parity is None
+            else stage_parity.input_statuses.get(query.input_key, "unavailable")
+        ),
         query.dataset_key,
         query.upstream_stage_key,
         query.upstream_attempt_key,

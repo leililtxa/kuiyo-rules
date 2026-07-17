@@ -32,6 +32,14 @@ from kuiyo_rules.audit.statistics import (
     compare_rule_versions,
     summarize_outcomes,
 )
+from kuiyo_rules.audit.parity import (
+    ProductionInputEvidence,
+    ProductionReplayParity,
+    ProductionStageEvidence,
+    StageParity,
+    aggregate_parity,
+    compare_production_replay,
+)
 
 __all__ = [
     "AuditAsOf",
@@ -59,4 +67,10 @@ __all__ = [
     "cluster_bootstrap_interval",
     "compare_rule_versions",
     "summarize_outcomes",
+    "ProductionInputEvidence",
+    "ProductionReplayParity",
+    "ProductionStageEvidence",
+    "StageParity",
+    "aggregate_parity",
+    "compare_production_replay",
 ]
