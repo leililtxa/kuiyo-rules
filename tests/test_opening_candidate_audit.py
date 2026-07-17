@@ -15,6 +15,7 @@ from kuiyo_rules.audit import (
     build_opening_candidate_outcome_plan,
     compute_opening_candidate_audit,
     get_audit_specification,
+    get_audit_policy,
     ProductionStageEvidence,
 )
 from kuiyo_rules.evidence import ContentEvidence
@@ -46,6 +47,10 @@ def test_opening_candidate_audit_plans_external_outcome_datasets() -> None:
 def test_audit_specification_registry_resolves_canonical_identity() -> None:
     assert (
         get_audit_specification("AUDIT-001", "v001")
+        is OPENING_CANDIDATE_AUDIT_V001
+    )
+    assert (
+        get_audit_policy("AUDIT-001", "v001").specification
         is OPENING_CANDIDATE_AUDIT_V001
     )
 

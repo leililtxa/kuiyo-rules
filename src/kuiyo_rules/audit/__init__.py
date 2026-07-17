@@ -40,7 +40,11 @@ from kuiyo_rules.audit.parity import (
     aggregate_parity,
     compare_production_replay,
 )
-from kuiyo_rules.audit.registry import AuditSpecificationRegistry
+from kuiyo_rules.audit.registry import (
+    AuditSpecificationRegistry,
+    RuleAuditPolicy,
+    RuleAuditPolicyRegistry,
+)
 
 __all__ = [
     "AuditAsOf",
@@ -77,6 +81,10 @@ __all__ = [
     "AuditSpecificationRegistry",
     "DEFAULT_AUDIT_SPECIFICATIONS",
     "get_audit_specification",
+    "RuleAuditPolicy",
+    "RuleAuditPolicyRegistry",
+    "DEFAULT_AUDIT_POLICIES",
+    "get_audit_policy",
 ]
 
 DEFAULT_AUDIT_SPECIFICATIONS = AuditSpecificationRegistry(
@@ -89,3 +97,42 @@ def get_audit_specification(
     audit_spec_version: str,
 ) -> AuditSpecification:
     return DEFAULT_AUDIT_SPECIFICATIONS.get(audit_spec_key, audit_spec_version)
+
+
+def _build_opening_candidate_plan(replay, specification, as_of):
+    return build_opening_candidate_outcome_plan(
+        replay=replay,
+        specification=specification,
+        as_of=as_of,
+    )
+
+
+def _compute_opening_candidate(
+    replay,
+    specification,
+    outcome_plan,
+    outcome_bundle,
+    production_evidence,
+):
+    return compute_opening_candidate_audit(
+        replay=replay,
+        specification=specification,
+        outcome_plan=outcome_plan,
+        outcome_bundle=outcome_bundle,
+        production_evidence=production_evidence,
+    )
+
+
+DEFAULT_AUDIT_POLICIES = RuleAuditPolicyRegistry(
+    (
+        RuleAuditPolicy(
+            OPENING_CANDIDATE_AUDIT_V001,
+            _build_opening_candidate_plan,
+            _compute_opening_candidate,
+        ),
+    )
+)
+
+
+def get_audit_policy(audit_spec_key: str, audit_spec_version: str) -> RuleAuditPolicy:
+    return DEFAULT_AUDIT_POLICIES.get(audit_spec_key, audit_spec_version)
