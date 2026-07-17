@@ -13,6 +13,16 @@ ConformanceStatus = Literal["valid", "degraded", "invalid"]
 
 
 @dataclass(frozen=True)
+class EvidenceCaptureContext:
+    capture_mode: CaptureMode
+    captured_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.captured_at.tzinfo is None or self.captured_at.utcoffset() is None:
+            raise ValueError("captured_at must be timezone-aware")
+
+
+@dataclass(frozen=True)
 class QueryIntent:
     input_key: str
     input_type: InputType

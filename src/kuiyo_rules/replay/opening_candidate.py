@@ -17,6 +17,7 @@ from kuiyo_rules.contracts import (
     build_generate_input,
     build_tier_input,
     candidate_handoff_from_output,
+    evaluation_handoff_from_output,
 )
 from kuiyo_rules.definitions import ResearchRuleVersion
 from kuiyo_rules.definitions.input_contract import (
@@ -26,11 +27,16 @@ from kuiyo_rules.definitions.input_contract import (
 )
 from kuiyo_rules.evidence import (
     DatasetQueryRequirement,
+    EvidenceCaptureContext,
     InputEvidence,
     InputSemanticRole,
     QueryIntent,
+    ResolutionEvidence,
     dataframe_fingerprint,
+    evaluate_execution_evidence,
+    generate_execution_evidence,
     semantic_fingerprint,
+    stage_output_execution_evidence,
 )
 from kuiyo_rules.execution import canonical_attempt_key
 from kuiyo_rules.replay.contracts import (
@@ -40,12 +46,6 @@ from kuiyo_rules.replay.contracts import (
     ReplayStageInputPlan,
     ReplayStageResult,
     ResolvedReplayStageData,
-)
-from kuiyo_rules.replay.opening_candidate_evidence import (
-    evaluate_execution_evidence,
-    generate_execution_evidence,
-    resolution_mapping,
-    stage_output_evidence,
 )
 
 
@@ -191,11 +191,11 @@ class OpeningCandidateReplayPolicy:
                     rule_input,
                     rule_version=rule_version,
                     resolutions=resolution_mapping(resolved),
-                    candidate_evidence=stage_output_evidence(
-                        primary,
+                    candidate_evidence=replay_stage_output_evidence(
+                        upstream=primary,
                         input_key="evaluate.candidates",
                         output_contract="opening_candidate.generate.output/v001",
-                        frame=candidates,
+                        frame=rule_input.candidates,
                         decision_cutoff_at=attempt.cutoff_at,
                     ),
                 ),
@@ -203,7 +203,9 @@ class OpeningCandidateReplayPolicy:
         evaluation = latest_stage(progress.completed_stages, "evaluate")
         if evaluation is None:
             raise ValueError("tier requires evaluation output")
-        evaluation_frame = cast(CandidateEvaluationOutput, evaluation.rule_output).evaluations
+        evaluation_frame = evaluation_handoff_from_output(
+            cast(CandidateEvaluationOutput, evaluation.rule_output)
+        )
         rule_input = cast(
             CandidateTierInput,
             build_tier_input(
@@ -216,18 +218,18 @@ class OpeningCandidateReplayPolicy:
         return (
             rule_input,
             (
-                stage_output_evidence(
-                    primary,
+                replay_stage_output_evidence(
+                    upstream=primary,
                     input_key="tier.candidates",
                     output_contract="opening_candidate.generate.output/v001",
-                    frame=candidates,
+                    frame=rule_input.candidates,
                     decision_cutoff_at=attempt.cutoff_at,
                 ),
-                stage_output_evidence(
-                    evaluation,
+                replay_stage_output_evidence(
+                    upstream=evaluation,
                     input_key="tier.evaluations",
                     output_contract="opening_candidate.evaluate.output/v001",
-                    frame=evaluation_frame,
+                    frame=rule_input.evaluations,
                     decision_cutoff_at=attempt.cutoff_at,
                 ),
             ),
@@ -433,6 +435,44 @@ class OpeningCandidateReplayPolicy:
                 evaluations,
             ),
         )
+
+
+def resolution_mapping(
+    resolved: ResolvedReplayStageData,
+) -> dict[str, ResolutionEvidence]:
+    return {
+        item.input_key: item.resolution_evidence
+        for item in resolved.datasets
+    }
+
+
+def replay_stage_output_evidence(
+    *,
+    upstream: ReplayStageResult,
+    input_key: str,
+    output_contract: str,
+    frame: pd.DataFrame,
+    decision_cutoff_at: datetime,
+) -> InputEvidence:
+    captured_at = max(
+        (item.conformance.captured_at for item in upstream.input_evidence),
+        default=upstream.attempt.cutoff_at,
+    )
+    return stage_output_execution_evidence(
+        input_key=input_key,
+        upstream_stage_key=upstream.attempt.stage_key,
+        upstream_attempt_key=upstream.attempt.attempt_key,
+        output_contract=output_contract,
+        frame=frame,
+        upstream_cutoff_at=upstream.attempt.cutoff_at,
+        decision_cutoff_at=decision_cutoff_at,
+        data_quality=upstream.data_quality,
+        upstream_input_evidence=upstream.input_evidence,
+        capture_context=EvidenceCaptureContext(
+            "historical_reconstruction",
+            captured_at,
+        ),
+    )
 
 
 def build_generate_rule_input(

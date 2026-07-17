@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import cast
 
 import pandas as pd
@@ -16,30 +16,21 @@ from kuiyo_rules.definitions.input_contract import (
     rule_input_strings,
     rule_input_text,
 )
-from kuiyo_rules.evidence import (
+from kuiyo_rules.evidence.contracts import (
     ConformanceStatus,
     ContentEvidence,
+    EvidenceCaptureContext,
     InputEvidence,
+    InputSemanticRole,
     KnownTimeConformance,
     QueryIntent,
     ResolutionEvidence,
     ResolvedSourceEvidence,
+)
+from kuiyo_rules.evidence.fingerprints import (
     dataframe_fingerprint,
     semantic_fingerprint,
 )
-from kuiyo_rules.replay.contracts import (
-    ReplayStageResult,
-    ResolvedReplayStageData,
-)
-
-
-def resolution_mapping(
-    resolved: ResolvedReplayStageData,
-) -> dict[str, ResolutionEvidence]:
-    return {
-        item.input_key: item.resolution_evidence
-        for item in resolved.datasets
-    }
 
 
 def generate_execution_evidence(
@@ -47,7 +38,12 @@ def generate_execution_evidence(
     *,
     rule_version: ResearchRuleVersion,
     resolutions: Mapping[str, ResolutionEvidence],
+    capture_context: EvidenceCaptureContext | None = None,
 ) -> tuple[InputEvidence, ...]:
+    capture = capture_context or historical_capture_context(
+        tuple(resolutions.values()),
+        default=rule_input.cutoff_at,
+    )
     previous_trade_date_frame = pd.DataFrame(
         [
             {
@@ -79,6 +75,8 @@ def generate_execution_evidence(
             filters={"calendar_code": "cn_a"},
             min_known_at=previous_close,
             max_known_at=previous_close,
+            semantic_role="runtime_reference",
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="generate.stock_quotes",
@@ -109,6 +107,7 @@ def generate_execution_evidence(
             },
             min_known_at=stock_known[0],
             max_known_at=stock_known[1],
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="generate.auctions",
@@ -122,6 +121,7 @@ def generate_execution_evidence(
             max_known_at=auction_known[1],
             empty_status="degraded",
             empty_reason="auction_input_empty_proxy_possible",
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="generate.daily_quotes",
@@ -130,12 +130,16 @@ def generate_execution_evidence(
             cutoff_at=rule_input.cutoff_at,
             resolutions=(resolutions["generate.stock_daily"],),
             requested_range={
-                "date_start": min_frame_date(rule_input.daily_quotes),
+                "date_start": rule_input.trade_date
+                - timedelta(
+                    days=rule_input_int(rule_version, "daily_lookback_days")
+                ),
                 "date_end_exclusive": rule_input.trade_date,
             },
             filters={},
             min_known_at=daily_known[0],
             max_known_at=daily_known[1],
+            capture_context=capture,
         ),
     )
 
@@ -146,7 +150,12 @@ def evaluate_execution_evidence(
     rule_version: ResearchRuleVersion,
     resolutions: Mapping[str, ResolutionEvidence],
     candidate_evidence: InputEvidence,
+    capture_context: EvidenceCaptureContext | None = None,
 ) -> tuple[InputEvidence, ...]:
+    capture = capture_context or historical_capture_context(
+        tuple(resolutions.values()),
+        default=rule_input.evaluation_cutoff_at,
+    )
     stock_known = frame_datetime(rule_input.stock_quotes, ("snapshot_at", "quote_time"))
     industry_known = frame_datetime(
         rule_input.industry_quotes, ("snapshot_at", "quote_time")
@@ -173,6 +182,7 @@ def evaluate_execution_evidence(
             filters={"selection": "candidate_symbols_as_of"},
             min_known_at=classification_known,
             max_known_at=classification_known,
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="evaluate.industry_members",
@@ -184,6 +194,7 @@ def evaluate_execution_evidence(
             filters={"selection": "candidate_industries_as_of"},
             min_known_at=classification_known,
             max_known_at=classification_known,
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="evaluate.stock_quotes",
@@ -198,6 +209,7 @@ def evaluate_execution_evidence(
             filters={"selection": "candidate_and_industry_members"},
             min_known_at=stock_known[0],
             max_known_at=stock_known[1],
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="evaluate.industry_quotes",
@@ -212,6 +224,7 @@ def evaluate_execution_evidence(
             filters={"selection": "candidate_industries"},
             min_known_at=industry_known[0],
             max_known_at=industry_known[1],
+            capture_context=capture,
         ),
         dataset_execution_evidence(
             input_key="evaluate.index_quotes",
@@ -228,6 +241,7 @@ def evaluate_execution_evidence(
             },
             min_known_at=index_known[0],
             max_known_at=index_known[1],
+            capture_context=capture,
         ),
     )
 
@@ -243,6 +257,8 @@ def dataset_execution_evidence(
     filters: Mapping[str, object],
     min_known_at: datetime | None,
     max_known_at: datetime | None,
+    capture_context: EvidenceCaptureContext,
+    semantic_role: str = "decision",
     empty_status: str = "invalid",
     empty_reason: str = "input_empty",
 ) -> InputEvidence:
@@ -270,15 +286,12 @@ def dataset_execution_evidence(
         quality = "missing"
         status = "invalid"
         reasons = ("known_after_decision_cutoff",)
-    captured_at = max(
-        (item.captured_at for item in resolutions),
-        default=cutoff_at,
-    )
     return InputEvidence(
         query=QueryIntent(
             input_key=input_key,
             input_type="dataset",
             requested_range=dict(requested_range),
+            semantic_role=cast(InputSemanticRole, semantic_role),
             dataset_key=dataset_key,
             fields=tuple(sorted(str(column) for column in frame.columns)),
             filters=dict(filters),
@@ -305,12 +318,23 @@ def dataset_execution_evidence(
         ),
         conformance=KnownTimeConformance(
             decision_cutoff_at=cutoff_at,
-            capture_mode="historical_reconstruction",
-            captured_at=captured_at,
+            capture_mode=capture_context.capture_mode,
+            captured_at=capture_context.captured_at,
             temporal_capability="point_in_time",
             status=cast(ConformanceStatus, status),
             reasons=reasons,
         ),
+    )
+
+
+def historical_capture_context(
+    resolutions: Sequence[ResolutionEvidence],
+    *,
+    default: datetime,
+) -> EvidenceCaptureContext:
+    return EvidenceCaptureContext(
+        "historical_reconstruction",
+        max((item.captured_at for item in resolutions), default=default),
     )
 
 
@@ -405,17 +429,22 @@ def iso_or_none(value: object) -> str | None:
     return str(value)
 
 
-def stage_output_evidence(
-    upstream: ReplayStageResult,
+def stage_output_execution_evidence(
     *,
     input_key: str,
+    upstream_stage_key: str,
+    upstream_attempt_key: str,
     output_contract: str,
     frame: pd.DataFrame,
+    upstream_cutoff_at: datetime,
     decision_cutoff_at: datetime,
+    data_quality: str,
+    upstream_input_evidence: Sequence[InputEvidence],
+    capture_context: EvidenceCaptureContext,
 ) -> InputEvidence:
     fingerprint = dataframe_fingerprint(frame)
     decision_inputs = tuple(
-        item for item in upstream.input_evidence if item.query.semantic_role == "decision"
+        item for item in upstream_input_evidence if item.query.semantic_role == "decision"
     )
     statuses = [item.conformance.status for item in decision_inputs]
     capabilities = [item.conformance.temporal_capability for item in decision_inputs]
@@ -424,17 +453,23 @@ def stage_output_evidence(
             reason for item in decision_inputs for reason in item.conformance.reasons
         )
     )
-    captured_at = max(
-        (item.conformance.captured_at for item in upstream.input_evidence),
-        default=upstream.attempt.cutoff_at,
-    )
+    if not statuses:
+        statuses = [
+            "valid"
+            if data_quality == "normal"
+            else "invalid"
+            if data_quality == "missing"
+            else "degraded"
+        ]
+    if not capabilities:
+        capabilities = ["point_in_time"]
     return InputEvidence(
         query=QueryIntent(
             input_key,
             "stage_output",
             {},
-            upstream_stage_key=upstream.attempt.stage_key,
-            upstream_attempt_key=upstream.attempt.attempt_key,
+            upstream_stage_key=upstream_stage_key,
+            upstream_attempt_key=upstream_attempt_key,
             upstream_output_contract=output_contract,
             upstream_content_fingerprint=fingerprint,
         ),
@@ -444,14 +479,15 @@ def stage_output_evidence(
             entity_count=_frame_entity_count(frame),
             observation_count=len(frame),
             content_fingerprint=fingerprint,
-            max_known_at=upstream.attempt.cutoff_at.isoformat(),
-            quality=upstream.data_quality,
+            min_known_at=upstream_cutoff_at.isoformat(),
+            max_known_at=upstream_cutoff_at.isoformat(),
+            quality=data_quality,
             quality_reasons=(),
         ),
         conformance=KnownTimeConformance(
             decision_cutoff_at=decision_cutoff_at,
-            capture_mode="historical_reconstruction",
-            captured_at=captured_at,
+            capture_mode=capture_context.capture_mode,
+            captured_at=capture_context.captured_at,
             temporal_capability=(
                 "current_snapshot"
                 if "current_snapshot" in capabilities
@@ -463,7 +499,7 @@ def stage_output_evidence(
                 "invalid"
                 if "invalid" in statuses
                 else "degraded"
-                if not statuses or "degraded" in statuses
+                if "degraded" in statuses
                 else "valid"
             ),
             reasons=reasons,
