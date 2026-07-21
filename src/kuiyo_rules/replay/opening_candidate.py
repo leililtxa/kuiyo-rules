@@ -279,6 +279,7 @@ class OpeningCandidateReplayPolicy:
                     "market.index.constituent.monthly",
                     fields=("index_symbol", "member_symbol", "as_of_date"),
                     filters={"index_symbol": universe},
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -288,6 +289,7 @@ class OpeningCandidateReplayPolicy:
                         "symbol", "name", "exchange", "market", "listing_status",
                         "list_date", "delist_date",
                     ),
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -298,6 +300,7 @@ class OpeningCandidateReplayPolicy:
                         "effective_from", "effective_to",
                     ),
                     filters={"classification_system": classification, "level": level},
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -306,6 +309,7 @@ class OpeningCandidateReplayPolicy:
                     fields=("symbol", "name", "classification_system"),
                     filters={"classification_system": classification},
                     semantic_role="annotation",
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -362,6 +366,7 @@ class OpeningCandidateReplayPolicy:
                     "market.stock.classification.on_change",
                     fields=("symbol", "industry_symbol", "effective_from", "effective_to"),
                     filters={"classification_system": classification, "level": level},
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -370,6 +375,7 @@ class OpeningCandidateReplayPolicy:
                     fields=("symbol", "name", "classification_system"),
                     filters={"classification_system": classification},
                     semantic_role="annotation",
+                    known_at=attempt.cutoff_at,
                     allow_full_scan=True,
                 ),
                 _dataset_query(
@@ -704,21 +710,25 @@ def _dataset_query(
     time_end: time | None = None,
     fields: tuple[str, ...] = (),
     filters: Mapping[str, object] | None = None,
+    known_at: datetime | None = None,
     semantic_role: str = "decision",
     missing_policy: str = "warn",
     allow_full_scan: bool = False,
     symbols: tuple[str, ...] = (),
 ) -> DatasetQueryRequirement:
     canonical_symbols = tuple(dict.fromkeys(symbols))
+    requested_range = {
+        "date_start": date_start,
+        "date_end": date_end,
+        "time_start": time_start,
+        "time_end": time_end,
+    }
+    if known_at is not None:
+        requested_range["known_at"] = known_at
     query = QueryIntent(
         input_key=input_key,
         input_type="dataset",
-        requested_range={
-            "date_start": date_start,
-            "date_end": date_end,
-            "time_start": time_start,
-            "time_end": time_end,
-        },
+        requested_range=requested_range,
         semantic_role=cast(InputSemanticRole, semantic_role),
         dataset_key=dataset_key,
         fields=fields,

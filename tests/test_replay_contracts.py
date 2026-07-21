@@ -246,3 +246,31 @@ def test_opening_candidate_window_queries_use_complete_time_ranges() -> None:
 
     assert window_query.requested_range["time_start"].isoformat() == "00:00:00"
     assert window_query.requested_range["time_end"].isoformat() == "09:36:00"
+
+
+def test_opening_candidate_mutable_reference_queries_use_stage_known_at() -> None:
+    day = date(2026, 7, 14)
+    rule_version = get_rule_version("opening_candidate_watch", "v001")
+    day_plan = OPENING_CANDIDATE_REPLAY_POLICY.build_day_plan(
+        rule_version=rule_version,
+        trade_date=day,
+    )
+    progress = ReplayProgress(day_plan, processed_attempt_count=0)
+    stage_plan = OPENING_CANDIDATE_REPLAY_POLICY.build_stage_input_plan(
+        rule_version=rule_version,
+        progress=progress,
+    )
+    requirements = {
+        item.query.input_key: item.query
+        for item in stage_plan.external_requirements
+    }
+
+    for input_key in (
+        "generate.universe",
+        "generate.stock_reference",
+        "generate.classification",
+        "generate.industry_reference",
+    ):
+        assert requirements[input_key].requested_range["known_at"] == day_plan.attempts[0].cutoff_at
+
+    assert "known_at" not in requirements["generate.stock_window"].requested_range

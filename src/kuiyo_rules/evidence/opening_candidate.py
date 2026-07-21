@@ -96,6 +96,7 @@ def generate_execution_evidence(
             requested_range={
                 "trade_date": rule_input.trade_date,
                 "time_end_exclusive": rule_input.cutoff_at,
+                "known_at": rule_input.cutoff_at,
             },
             filters={
                 "universe_index_symbols": universe_symbols,
@@ -178,7 +179,10 @@ def evaluate_execution_evidence(
             frame=rule_input.candidate_industries,
             cutoff_at=rule_input.evaluation_cutoff_at,
             resolutions=classification_resolutions,
-            requested_range={"trade_date": rule_input.trade_date},
+            requested_range={
+                "trade_date": rule_input.trade_date,
+                "known_at": rule_input.evaluation_cutoff_at,
+            },
             filters={"selection": "candidate_symbols_as_of"},
             min_known_at=classification_known,
             max_known_at=classification_known,
@@ -190,7 +194,10 @@ def evaluate_execution_evidence(
             frame=rule_input.industry_members,
             cutoff_at=rule_input.evaluation_cutoff_at,
             resolutions=(resolutions["evaluate.classification"],),
-            requested_range={"trade_date": rule_input.trade_date},
+            requested_range={
+                "trade_date": rule_input.trade_date,
+                "known_at": rule_input.evaluation_cutoff_at,
+            },
             filters={"selection": "candidate_industries_as_of"},
             min_known_at=classification_known,
             max_known_at=classification_known,
